@@ -19,12 +19,17 @@ geometry:
 
 # Offsets are [right, up] in the head's own body frame, from its reference
 # point (radar: mechanical reference axis; horn: aperture center).
+#
+# RIG RULE (decided 2026-11-14): matched offsets. Each beacon sits at the
+# mirror position of the opposite camera (beacon right = -camera right, same
+# height), so the parallax baseline is ~0 and a range error no longer costs
+# angle. The real rig must be built this way; any mismatch goes in here.
 radar_head:
   camera_offset_m: [0.10, 0.0]     # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md example: 10 cm)
-  beacon_offset_m: [0.0, 0.10]     # ASSUMPTION - replace with datasheet/measurement
+  beacon_offset_m: [-0.10, 0.0]    # ASSUMPTION - replace with datasheet/measurement (mirrors the horn camera)
 horn_head:
   camera_offset_m: [0.10, 0.0]     # ASSUMPTION - replace with datasheet/measurement
-  beacon_offset_m: [0.0, 0.10]     # ASSUMPTION - replace with datasheet/measurement
+  beacon_offset_m: [-0.10, 0.0]    # ASSUMPTION - replace with datasheet/measurement (mirrors the radar camera)
 
 camera:  # same model on both heads
   focal_length_mm: 25.0            # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md)

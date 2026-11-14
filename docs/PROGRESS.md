@@ -32,7 +32,7 @@ Template:
   - Small-angle s/d vs atan(s/d) at 2 m with s = 10 cm: 0.0024 deg. Code will use atan.
   - Gaps: no task calibrates the horn-side camera to the horn boresight (task 5 covers the radar datum only); beacon LED control / frame sync and the data link between the heads are not in the four interfaces; the `--stream` schema is needed in task 2 but docs/messages.md is assigned to task 7; "p95 > 0.05" STOP gate does not say p95 of what; open question 3 (which error the 0.05 deg applies to) changes the pass logic.
 
-## 2026-11-14 – Task 2: Simulator and control core (built; box NOT ticked: STOP gate triggered at 2 m, waiting for Liam)
+## 2026-11-14 – Task 2: Simulator and control core (first run: STOP gate triggered at 2 m; resolved in the next entry)
 - Built: `rada_align/` config.py (strict loader, ERROR_SOURCES), geometry.py, world.py (truth), sensors.py (SimCamera/Inclinometer/Rangefinder/Actuators, build_simulation), disturbances.py, estimator.py, controller.py (IDLE/ACQUIRE/ALIGN/VERIFY/TRACK/FAULT), runner.py (one run scored against truth), montecarlo.py, plots.py, sim.py (CLI). `docs/messages.md` = stream schema v0. All parameters in config.yaml, marked ASSUMPTION or DESIGN.
 - Tests: `.venv/Scripts/python.exe -m pytest -q` -> `64 passed in 5.96s`. Required four are in: 10.47 mm at 12 m (test_geometry), parallax recovers true angle (test_geometry, test_estimator), zero-noise run converges at 2 m and 12 m (test_controller), 10x wind ends in FAULT "unstable: 2*sigma ... pass criterion impossible" (test_controller).
 - Key numbers (SIMULATION, assumed parameters; all scored against truth; seed 0):
@@ -56,3 +56,16 @@ Template:
   - True pass rate 32% at 12 m with the preliminary budget: the budget has no margin against |mean|+2sigma (2*RSS = 0.0497). Needs a smaller calibration bias or less wind, or a decision on what the criterion applies to (open question 3).
   - WSL run of pytest still unverified (task 0).
   - Next after the decision: task 1 (design review) is still open, then task 3.
+
+## 2026-11-14 – Task 2 closed: matched offsets (Liam's decision)
+- Built: config.yaml rig rule: each beacon mirrors the opposite camera (camera [0.10, 0], beacon [-0.10, 0]) -> parallax baseline ~0. test_sensors updated to cover both the unmatched and the matched layout. Task 2 ticked.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `64 passed in 4.40s`.
+- Key numbers (SIMULATION, assumed parameters, scored against truth, 500 runs, seed 0):
+  - 12 m: true residual p95 0.0390 / 0.0417 / 0.0356 / 0.0369 deg, max 0.0612. Gate not triggered. Reported pass 100.0%, true pass 35.2%, false accepts 64.8%, true score p95 0.061-0.067 deg. Time to ALIGNED mean 21.7 s, p95 31.1 s.
+  - 2 m: true residual p95 0.0401 / 0.0382 / 0.0387 / 0.0382 deg, max 0.0674. Gate not triggered (was 0.157). Reported pass 99.8%, true pass 32.8%, false accepts 67.1%. One run FAULT "verify failed".
+  - Budget 12 m (worst axis): none 0.0085, calibration 0.0199, wind 0.0175, fixture 0.0131, actuator 0.0101, rangefinder 0.0091, all 0.0247. Budget 2 m: none 0.0118, calibration 0.0207, wind 0.0175, fixture 0.0144, rangefinder 0.0134 (was 0.0876), all 0.0253.
+- Open issues / next:
+  - Still open from the previous entry, not yet answered by Liam: (a) true pass rate ~33-35%: the preliminary budget has no margin against |mean|+2*sigma; true score p95 > 0.05 at both distances; (b) accept or reject the two changed test tolerances and the two controller changes (coarse exit at 0.03 deg, combined feed-forward trims).
+  - Task 3 must build the rig with matched offsets and put the measured mismatch into config.yaml.
+  - WSL pytest run still unverified (task 0 unticked). Task 1 still open.
+  - Next: task 1 (design review) unless Liam names another.

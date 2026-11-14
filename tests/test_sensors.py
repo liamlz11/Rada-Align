@@ -1,3 +1,4 @@
+import dataclasses
 import math
 
 import numpy as np
@@ -94,15 +95,26 @@ def test_world_true_errors_have_the_documented_signs():
 
 
 def test_camera_pixel_matches_truth_and_parallax():
-    sim = build_simulation(QUIET, seed=0, **ALIGNED)
     intr = intrinsics_from_config(QUIET.camera)
-    m = sim.hardware.radar_camera.measure_beacon()
-    assert m.valid
-    az, el = g.pixel_to_angles_rad(m.u_px, m.v_px, intr)
-    d = sim.world.true_distance_m()
-    # Camera 10 cm right of the radar axis, horn beacon 10 cm above the horn center.
-    assert math.degrees(az) == pytest.approx(math.degrees(math.atan2(-0.10, d)), abs=1e-6)
-    assert math.degrees(el) == pytest.approx(math.degrees(math.atan2(0.10, d)), abs=1e-6)
+
+    def view(cfg):
+        sim = build_simulation(cfg, seed=0, **ALIGNED)
+        m = sim.hardware.radar_camera.measure_beacon()
+        assert m.valid
+        az, el = g.pixel_to_angles_rad(m.u_px, m.v_px, intr)
+        return math.degrees(az), math.degrees(el), sim.world.true_distance_m()
+
+    # Unmatched: camera 10 cm right of the radar axis, horn beacon 10 cm above
+    # the horn center -> the full parallax angle shows up in the pixels.
+    unmatched = dataclasses.replace(QUIET.horn_head, beacon_offset_m=(0.0, 0.10))
+    az, el, d = view(dataclasses.replace(QUIET, horn_head=unmatched))
+    assert az == pytest.approx(math.degrees(math.atan2(-0.10, d)), abs=1e-6)
+    assert el == pytest.approx(math.degrees(math.atan2(0.10, d)), abs=1e-6)
+
+    # Rig rule in config.yaml: the beacon mirrors the opposite camera -> no parallax.
+    az, el, _ = view(QUIET)
+    assert az == pytest.approx(0.0, abs=1e-9)
+    assert el == pytest.approx(0.0, abs=1e-9)
 
 
 def test_camera_reports_invalid_outside_field_of_view():
