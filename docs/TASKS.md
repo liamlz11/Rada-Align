@@ -47,7 +47,7 @@ STOP and ask if Monte Carlo p95 > 0.05 deg on any axis.
 Report: Monte Carlo table, measured vs preliminary budget, the 3 assumptions that drive the result most.
 
 ## 3. Demo rig and parts
-Parts we have: [LIST OF PARTS]. Demo distance: [DISTANCE] m.
+Parts we have: [LIST OF PARTS]. Demo distance: 2 m (Liam, 2026-11-14).
 Write docs/RIG.md:
 1. The simplest rig from these parts: horn mock-up mount (all 4 axes or the subset we can motorize by Monday), radar reference head, rigid mounting of cameras and beacons. Text sketch with dimensions.
 2. Angular resolution of each motorized axis with these parts, and whether it is good enough for 0.05 deg at the demo distance.
@@ -94,7 +94,7 @@ Done when `python -m rada_align.ui` runs against the simulator and the page was 
 
 ## 8. Integration and tabletop demo
 1. config.yaml `mode: sim | hw`. hw mode uses the real Camera, ESP32 actuators, inclinometer if connected; anything missing stays simulated and shows SIM in the dashboard.
-2. Tabletop distance [DISTANCE] m, same angular tolerance.
+2. Tabletop distance 2 m (Liam, 2026-11-14), same angular tolerance.
 3. Dry-run mode: compute and display corrections without moving motors.
 4. Per-run logging to runs/<timestamp>/ (JSONL measurements, commands, state changes) + HTML report (before/after per axis, sigma, pass/fail).
 STOP before the first real motor motion: show soft limits, max speeds, e-stop status, wait for my explicit OK.
