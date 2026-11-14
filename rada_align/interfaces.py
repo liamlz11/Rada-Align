@@ -4,10 +4,9 @@ Simulated drivers (rada_align.sensors) and real drivers (rada_align.vision,
 rada_align.hw) implement these, so the estimator and controller never know
 which one they are talking to.
 
-PROVISIONAL (task 0 skeleton): signatures are finalized in the task 2 plan.
-
-Units at this boundary: pixels for image coordinates, degrees for angles,
-millimetres for linear axes, metres for range, seconds for time.
+Units at this boundary: pixels for image coordinates (u right, v down),
+degrees for angles, millimetres for linear axes, metres for range, seconds
+for time.
 """
 
 from __future__ import annotations
@@ -20,13 +19,17 @@ ROTARY_AXES = ("pan", "tilt")  # degrees
 AXES = LINEAR_AXES + ROTARY_AXES
 
 
+class ActuatorError(RuntimeError):
+    """A motion command was rejected (soft limit, e-stop, driver error)."""
+
+
 @dataclass(frozen=True)
 class BeaconMeasurement:
-    """Centroid of the opposite beacon in one camera."""
+    """Centroid of the opposite beacon in one camera (undistorted pixels)."""
 
     u_px: float
     v_px: float
-    sigma_px: float  # centroid scatter over the averaging window
+    sigma_px: float  # centroid uncertainty of this sample
     valid: bool  # False: not found, saturated, or multiple blobs
     timestamp_s: float
 
@@ -35,8 +38,8 @@ class BeaconMeasurement:
 class TiltReading:
     """Dual-axis inclinometer reading relative to gravity."""
 
-    pitch_deg: float
-    roll_deg: float
+    pitch_deg: float  # boresight above the horizon
+    roll_deg: float  # about the boresight, positive = right side down
     timestamp_s: float
 
 
@@ -59,15 +62,24 @@ class Rangefinder(ABC):
 
 
 class Actuators(ABC):
-    """Horn mount: x and z in millimetres, pan and tilt in degrees."""
+    """Horn mount: x and z in millimetres, pan and tilt in degrees.
+
+    Sign convention, seen from the horn looking at the radar: +x moves the
+    horn to its right, +z moves it up, +pan turns it to its right, +tilt
+    turns it up.
+    """
 
     @abstractmethod
     def move_relative(self, axis: str, delta: float) -> None:
-        """Command a relative move on one axis (mm or deg)."""
+        """Start a relative move (non-blocking). Raises ActuatorError if rejected."""
 
     @abstractmethod
     def position(self, axis: str) -> float:
-        """Return the commanded position of one axis (mm or deg)."""
+        """Return the position the driver believes the axis is at."""
+
+    @abstractmethod
+    def limits(self, axis: str) -> tuple[float, float]:
+        """Return the soft limits (min, max) of one axis."""
 
     @abstractmethod
     def is_moving(self) -> bool:
@@ -80,3 +92,15 @@ class Actuators(ABC):
     @abstractmethod
     def stop(self) -> None:
         """Stop all axes immediately."""
+
+
+@dataclass
+class Hardware:
+    """Everything the controller talks to. Simulated and real parts can mix."""
+
+    radar_camera: Camera
+    horn_camera: Camera
+    radar_inclinometer: Inclinometer
+    horn_inclinometer: Inclinometer
+    rangefinder: Rangefinder
+    actuators: Actuators

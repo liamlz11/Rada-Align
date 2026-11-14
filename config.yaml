@@ -1,22 +1,89 @@
 # rada_align configuration.
 #
-# RULE: every component parameter added here must carry a comment
+# RULE: every component parameter is marked
 #   "ASSUMPTION - replace with datasheet/measurement"
 # until it is replaced by a real value, which is then marked with its source.
 # No assumed value may be presented as a real spec.
-#
-# Sections are intentionally empty; task 2 fills them.
+# Values marked DESIGN are controller design choices, fixed before any
+# simulation result was seen. They are never tuned to make a test pass.
 
 mode: sim  # sim | hw
 
-geometry: {}       # distance, mechanical offsets (parallax), tolerance
-camera_radar: {}   # radar reference head camera
-camera_horn: {}    # horn head camera
-beacon: {}
-inclinometer: {}
-rangefinder: {}
-actuators: {}      # x, z, pan, tilt
-disturbances: {}   # wind, tripod drift
-estimator: {}
-controller: {}     # deadband, thresholds, verify window
-montecarlo: {}
+geometry:
+  distance_m: 12.0                 # ASSUMPTION - replace with datasheet/measurement (challenge: 10-15 m)
+  tolerance_deg: 0.05              # REQUIREMENT R7
+  initial_pointing_error_deg: 1.0  # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per axis, radar and horn)
+  initial_roll_deg: 0.5            # ASSUMPTION - replace with datasheet/measurement (spirit-level setup, uniform +/-)
+  # Pan/tilt pivot -> horn aperture center, horn body frame [right, forward, up]
+  horn_pivot_to_center_m: [0.0, 0.10, 0.0]  # ASSUMPTION - replace with datasheet/measurement
+
+# Offsets are [right, up] in the head's own body frame, from its reference
+# point (radar: mechanical reference axis; horn: aperture center).
+radar_head:
+  camera_offset_m: [0.10, 0.0]     # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md example: 10 cm)
+  beacon_offset_m: [0.0, 0.10]     # ASSUMPTION - replace with datasheet/measurement
+horn_head:
+  camera_offset_m: [0.10, 0.0]     # ASSUMPTION - replace with datasheet/measurement
+  beacon_offset_m: [0.0, 0.10]     # ASSUMPTION - replace with datasheet/measurement
+
+camera:  # same model on both heads
+  focal_length_mm: 25.0            # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md)
+  pixel_size_um: 1.55              # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md)
+  width_px: 4056                   # ASSUMPTION - replace with datasheet/measurement (Pi HQ camera class)
+  height_px: 3040                  # ASSUMPTION - replace with datasheet/measurement
+  rate_hz: 10.0                    # ASSUMPTION - replace with datasheet/measurement (centroid output rate)
+  centroid_noise_px: 0.3           # ASSUMPTION - replace with datasheet/measurement (per sample, white; ~0.001 deg)
+  turbulence_deg: 0.003            # ASSUMPTION - replace with datasheet/measurement (budget row, apparent beacon wander)
+  turbulence_tau_s: 0.5            # ASSUMPTION - replace with datasheet/measurement
+
+calibration:
+  mount_misalignment_deg: 0.5      # ASSUMPTION - replace with datasheet/measurement (true camera-to-axis delta, uniform +/-)
+  residual_sigma_deg: 0.015        # ASSUMPTION - replace with datasheet/measurement (budget row; bias per setup, both heads)
+  fixture_repeat_sigma_deg: 0.010  # ASSUMPTION - replace with datasheet/measurement (budget row; bias per setup, radar head)
+
+inclinometer:
+  noise_deg: 0.005                 # ASSUMPTION - replace with datasheet/measurement (budget row, per sample)
+  bias_sigma_deg: 0.005            # ASSUMPTION - replace with datasheet/measurement (bias per setup)
+
+rangefinder:
+  bias_sigma_m: 0.05               # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md: +/-5 cm)
+  noise_m: 0.01                    # ASSUMPTION - replace with datasheet/measurement (per sample)
+
+actuators:  # x, z in mm; pan, tilt in deg; max_speed per second
+  x:    {step: 0.0025,   backlash: 0.05, max_speed: 20.0, min: -250.0, max: 250.0}  # ASSUMPTION - replace with datasheet/measurement (8 mm lead screw, 200 x 16 microsteps)
+  z:    {step: 0.0025,   backlash: 0.05, max_speed: 20.0, min: -250.0, max: 250.0}  # ASSUMPTION - replace with datasheet/measurement
+  pan:  {step: 0.001125, backlash: 0.02, max_speed: 2.0,  min: -15.0,  max: 15.0}   # ASSUMPTION - replace with datasheet/measurement (1.8 deg / 16 / 100 worm gear)
+  tilt: {step: 0.001125, backlash: 0.02, max_speed: 2.0,  min: -15.0,  max: 15.0}   # ASSUMPTION - replace with datasheet/measurement
+
+disturbances:  # angular motion of each tripod head, per axis
+  # jitter and sway RSS to the 0.015 deg "wind and tripod settling" budget row
+  wind_jitter_deg: 0.0106          # ASSUMPTION - replace with datasheet/measurement (white, per sample)
+  wind_sway_deg: 0.0106            # ASSUMPTION - replace with datasheet/measurement (low-frequency, 1 sigma)
+  wind_sway_tau_s: 2.0             # ASSUMPTION - replace with datasheet/measurement
+  drift_rate_sigma_deg_per_min: 0.01  # ASSUMPTION - replace with datasheet/measurement (slow tripod settling)
+
+estimator:
+  align_window_s: 1.0              # DESIGN: quick look while errors are larger than the tolerance
+  verify_window_s: 5.0             # DESIGN: pass-criterion window (CLAUDE.md: 5-10 s)
+  settle_time_s: 0.5               # DESIGN: wait after motion before sampling
+
+controller:
+  deadband_deg: 0.01               # DESIGN: no fine correction below this
+  gain: 1.0                        # DESIGN
+  max_iterations: 30               # DESIGN: coarse corrections before FAULT
+  max_verify_attempts: 6           # DESIGN: verify windows before FAULT
+  track_drift_threshold_deg: 0.03  # DESIGN (CHALLENGE.md operating flow, step 8)
+  acquire_frames: 5                # DESIGN: consecutive valid frames on both cameras
+  acquire_timeout_s: 60.0          # DESIGN
+  lost_frames: 10                  # DESIGN: consecutive invalid frames before re-acquiring
+  unstable_windows: 3              # DESIGN: consecutive align windows with 2*sigma >= tolerance before FAULT
+  search_step_deg: 5.0             # DESIGN: spiral search step (about half the smaller FOV)
+  search_max_deg: 10.0             # DESIGN
+  search_dwell_s: 0.5              # DESIGN
+
+montecarlo:
+  runs: 500
+  seed: 0
+  max_time_s: 300.0
+  track_time_s: 10.0
+  sensitivity_runs: 100
