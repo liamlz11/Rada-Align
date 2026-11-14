@@ -106,3 +106,18 @@ Template:
   - "aligned_with_bias" is never true with the assumed calibration. The dashboard must not hide that.
   - Still unanswered from task 2: accept/reject the two changed test tolerances and the two controller changes. WSL pytest unverified (task 0 unticked).
   - Next: task 3. Needs from Liam: [LIST OF PARTS] and [DISTANCE].
+
+## 2026-11-14 – P1 measured like for like: no truth benefit (decision needed)
+- Built: tests/test_proposals.py jitter-only TRACK test made deterministic (synthetic samples; asserts the warning and that nothing moves). docs/TASKS.md task 7 now lists the Hold button, `aligned` vs `aligned_with_bias`, `u_bias_deg` and the event log.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `72 passed in 5.55s`.
+- Key numbers (SIMULATION, assumed parameters; 100 runs, 12 m, 120 s after ALIGNED, same seeds; before = commit 4c85b6e with the fixed 0.03 deg drift threshold, after = P1):
+  - 5 s blocks where TRUTH meets the criterion on all axes: before 28.7%, after 29.5%.
+  - RMS true error per axis: before 0.0239/0.0250/0.0254/0.0244 deg, after 0.0232/0.0244/0.0256/0.0240 deg.
+  - Time the system shows TRACK + aligned: before 71.7%, after 70.0%.
+  - Re-alignments per minute: before 0.99, after 2.44. FAULT after ALIGNED: 0 and 0.
+- Open issues / next:
+  - P1 as approved does not improve the truth and moves the motors 2.5x more often. The true error is dominated by the calibration bias the tracker cannot see plus wind it cannot remove. Liam to choose: keep, add a persistence rule, or revert to the fixed threshold. No threshold was changed.
+  - P2 was implemented as REPORT-ONLY (pass decision unchanged; U_bias = 2*u_delta added linearly). Liam to confirm this reading; if U_bias should gate the pass decision, nothing passes with the assumed calibration.
+  - docs/CHALLENGE.md operating flow step 8 still says "drift > 0.03 deg"; not edited.
+  - Still unanswered from task 2: two changed test tolerances, two controller changes. WSL pytest unverified.
+  - Next: task 3. Needs [LIST OF PARTS] and [DISTANCE].

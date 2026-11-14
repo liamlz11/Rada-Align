@@ -86,7 +86,9 @@ STOP: do not flash. Give me the flash command and a Hebrew bench-test checklist,
 
 ## 7. Operator dashboard
 FastAPI + WebSocket backend, one static HTML/JS page (no build step, no framework). Hebrew UI, RTL, numbers left-to-right.
-Shows: big numbers (radar Az/El, horn Az/El, dx/dh in mm; green within 0.05 deg, red outside); bullseye plot with the 0.05 deg circle, current point and trail; convergence chart per axis; state and fault reason; before/after of the last alignment; large ALIGNED indicator; buttons Start alignment, Stop, Re-align, Export report.
+Shows: big numbers (radar Az/El, horn Az/El, dx/dh in mm; green within 0.05 deg, red outside); bullseye plot with the 0.05 deg circle, current point and trail; convergence chart per axis; state, warning and fault reason; before/after of the last alignment; large ALIGNED indicator; buttons Start alignment, Stop, Re-align, Hold (toggle, calls Controller.set_hold; shown while active), Export report.
+Calibration uncertainty (REVIEW W1): per axis show `score_deg` and `score_with_bias_deg` with `u_bias_deg`. The ALIGNED indicator must distinguish `aligned` (measured criterion met) from `aligned_with_bias` (also met with calibration uncertainty); never show the strict state when only `aligned` is true.
+Event log: time-stamped `events`, including every `move`.
 Data: the simulator `--stream` now, the real controller later, one schema in docs/messages.md.
 Done when `python -m rada_align.ui` runs against the simulator and the page was checked in a browser.
 

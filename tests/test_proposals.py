@@ -70,15 +70,36 @@ def test_track_corrects_only_when_the_criterion_is_lost():
     assert abs(sim.world.true_errors_deg()["radar_az"]) < TOL
 
 
-def test_track_does_not_move_for_jitter_it_cannot_fix():
-    # Mean inside the deadband, jitter large enough to fail the criterion.
-    windy = with_only_sources(CFG, ("wind",))
-    sim, ctrl = _make(windy)
+def test_track_does_not_move_for_jitter_it_cannot_fix(monkeypatch):
+    """Mean inside the deadband, jitter just under the "unstable" limit: the
+    criterion fails, but no motor move can fix it, so nothing may move."""
+    sim, ctrl = _make(QUIET)
     ctrl.start()
-    status, _ = _run(sim, ctrl, 40.0)
-    assert status.state in ("TRACK", "ALIGN", "VERIFY")
-    if status.warning and status.warning.startswith("marginal stability"):
-        assert "deadband" in status.warning
+    _run_until_track(sim, ctrl)
+    settled = _positions(sim)
+
+    # 0.005 +/- 0.0235 deg: |mean| = 0.005 < deadband, 2*sigma = 0.047 < tol,
+    # |mean| + 2*sigma = 0.052 >= tol.
+    tick = {"n": 0}
+
+    def synthetic(now):
+        tick["n"] += 1
+        sign = 1.0 if tick["n"] % 2 else -1.0
+        ctrl._last_errors = {axis: 0.005 + sign * 0.0235 for axis in ERROR_AXES}
+        return ctrl._last_errors
+
+    monkeypatch.setattr(ctrl, "_read", synthetic)
+    status, events = _run(sim, ctrl, 15.0)
+
+    assert status.state == "TRACK"
+    assert status.errors["radar_az"]["score_deg"] >= TOL
+    assert abs(status.errors["radar_az"]["mean_deg"]) < CFG.controller.deadband_deg
+    assert 2 * status.errors["radar_az"]["sigma_deg"] < TOL
+    assert status.warning.startswith("marginal stability")
+    assert not status.aligned
+    assert status.corrections == 0
+    assert not [text for _, text in events if text.startswith("move ")]
+    assert _positions(sim) == settled
 
 
 # ---------------------------------------------------------------- P2: U_bias
