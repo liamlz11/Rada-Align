@@ -40,10 +40,21 @@ confidence while the horn sits off-axis.
 
 **Cheapest fix by Monday.**
 1. Reversal calibration on every setup, not once in the lab: measure, rotate the
-   head 180 deg about the datum axis, measure again. Wind-limited precision of
-   `delta` is 0.0043 deg with 10 s per position and 0.0019 deg with 60 s
-   [arith, using the assumed wind]. Doing it per setup also removes most of the
-   fixture and thermal terms, because they are measured together with `delta`.
+   head 180 deg about the datum axis, measure again. What it does and does not
+   remove [arith, using the assumed wind]:
+   - Camera-to-fixture offset, including a slow thermal bend of the bracket, is
+     measured directly: 0.0043 deg with 10 s per position, 0.0019 deg with 60 s.
+   - Seat error is NOT removed. Each seating has its own error, and the estimate
+     is wrong by their mean, i.e. sigma_seat / sqrt(2): 0.0071 deg for a
+     0.010 deg seat, 0.0035 deg for 0.005 deg.
+   - Total: 0.0083 deg (0.010 seat, 10 s), 0.0040 deg (0.005 seat, 60 s).
+   - It assumes the radar tripod does not move while the head is handled.
+   - In the flipped position the camera is on the other side of the axis, so the
+     matched-offset cancellation is lost (baseline 20 cm). A 5 cm range error
+     then costs 0.0020 deg on delta at 12 m but 0.069 deg at 2 m; on the table
+     the range must be known to about 2 mm (0.0028 deg).
+   So "0.005 deg with reversal" is a target that needs the kinematic seat and
+   60 s per position. It is not demonstrated: task 5 has to simulate it.
 2. Three-point (kinematic) seat on the fixture instead of a flat clamp.
 3. Report the criterion honestly: show `|mean| + 2*sigma + U_bias`, where
    `U_bias` is the calibration uncertainty from the reversal, and show it on the
@@ -107,10 +118,16 @@ known exactly. No task measures them: task 5 calibrates the radar side only.
 1. Build the heads with matched offsets (already the rig rule in config.yaml)
    and measure the residual mismatch with a caliper to 0.1-0.3 mm; put the
    number in config.yaml.
-2. Calibrate the horn head with a flat mirror on the horn's aperture flange: the
-   horn camera looks at the reflection of its own beacon. The reflection doubles
-   the tilt, so 0.3 px resolves 0.0005 deg of flange tilt [arith]. This ties the
-   camera to the horn's mechanical face without any second instrument.
+2. Check the horn's mechanical face directly with a flat mirror on its aperture
+   flange, seen by the RADAR-side camera as a reflection of the radar-side
+   beacon. (The horn's own camera looks the same way as the flange and cannot
+   see it.) A flange tilt of theta moves the reflection by theta, not 2 theta,
+   because the beacon is next to the camera and not a collimated beam; 0.3 px
+   resolves 0.0011 deg [arith]. The difference between this reading and the
+   horn camera's reading is the horn-side `delta`. Limits: it only works near
+   alignment (the reflection point moves 10.5 mm per 0.05 deg at 12 m, 209 mm at
+   1 deg), and the mirror must sit flat on the flange. UNVERIFIED: geometry by
+   arithmetic only, to be simulated in task 5 before anyone relies on it.
 3. Add this as a task (see proposals at the end).
 
 ### W4. The tabletop demo does not scale the way the angles do
@@ -189,13 +206,13 @@ constant) and noise (visible, and counted twice by the criterion).
 
 | Entry | Preliminary | Problem | Assume instead until measured |
 | --- | --- | --- | --- |
-| Camera-to-datum calibration | 0.015 | Optimistic unless reversal is done per setup. It is a bias. | 0.005 with per-setup reversal (W1); 0.03 or worse without access to a rotation axis |
-| Fixture repeatability | 0.010 | 10 um over 100 mm is 0.0057; a hand clamp is 30-50 um, 0.017-0.029 | 0.02 for a flat clamp, 0.005 for a kinematic seat |
+| Camera-to-datum calibration | 0.015 | Optimistic unless reversal is done per setup. It is a bias. | 0.008 with per-setup reversal on a flat clamp, 0.004 if a kinematic seat and 60 s per position are achieved (W1, not demonstrated); 0.03 or worse without a rotation axis |
+| Fixture repeatability | 0.010 | 10 um over 100 mm is 0.0057; a hand clamp is 30-50 um, 0.017-0.029. Reversal only reduces it by sqrt(2) | 0.02 for a flat clamp, 0.005 for a kinematic seat (placeholder, to be measured) |
 | Wind and settling | 0.015 | No measurement behind it; counted as `2*sigma` it is 0.030; cliff at 1.5x | Measure. Plan for 0.0075 indoors, treat 0.02+ outdoors as "do not declare alignment" |
 | Actuator residual | 0.005 | Simulated control floor is 0.0085 at 12 m and 0.0118 at 2 m, set by the 0.01 deg deadband, not by the motors | 0.009 |
 | Thermal drift of the head | missing | 5 K across the bracket is 0.013 | 0.01 until shaded or measured |
 | Offset knowledge (beacon/camera to reference point) | missing | 1 mm is 0.0048 at 12 m, 0.029 at 2 m | 0.005 at 12 m with caliper-measured offsets |
-| Horn camera to horn boresight | missing | Not calibrated by any task | 0.015 until the mirror method is done |
+| Horn camera to horn boresight | missing | Not calibrated by any task | 0.015 until a horn-side calibration exists (mirror method is unverified) |
 | Parallax (distance error) | 0.002 | Fine at 12 m only with matched offsets: 0.0031 above the floor | 0.003 |
 
 Overstated entries, which we can say so about: the inclinometer (0.005) adds
@@ -203,20 +220,26 @@ Overstated entries, which we can say so about: the inclinometer (0.005) adds
 inclinometer is only used for roll; the centroid (0.002) adds 0.0000 deg after
 averaging [sim].
 
-What it takes to pass, in simulation: calibration and fixture at 0.005 deg each
-gives 82.2% true pass; halving the wind as well gives 98.8% with 1.2% false
-accepts [sim].
+What it would take to pass, in simulation: IF calibration and fixture were both
+0.005 deg the true pass rate would be 82.2%; halving the wind as well gives
+98.8% with 1.2% false accepts [sim]. These are targets, not results: nothing
+yet shows we can reach 0.005 deg.
 
 ## 3. Eight questions a judge would ask
 
+Answers marked [after P<n>] describe something that is NOT built yet and depends
+on proposal n below being approved and implemented. Do not use them as they
+stand in the pitch or the demo script until then.
+
 **1. How do you know the camera axis is the radar's mechanical axis?**
-By reversal: the head is measured in two orientations 180 deg apart about the
+[after P2, P3] By reversal: the head is measured in two orientations 180 deg apart about the
 datum axis, the mean is the true axis and half the difference is the camera
 offset. It is repeated on every setup and its uncertainty is added to the
-reported result. What we still need from you is which datum feature we may use.
+reported result. Seat repeatability is not removed by this and is budgeted
+separately. What we still need from you is which datum feature we may use.
 
 **2. Your screen says 0.01 deg. Why should I believe it?**
-You should not believe the screen alone, and we do not ask you to. Our simulator
+[after P2; the ground-truth check is task 9] You should not believe the screen alone, and we do not ask you to. Our simulator
 scores the system against the true geometry, and with our first assumptions the
 system was right only 35% of the time it said "aligned", because of the datum
 transfer. That is why the result is reported with a bias term and checked
@@ -250,7 +273,7 @@ prove outdoor stability or the datum transfer, and we say which numbers come
 from simulation.
 
 **7. Will your hardware disturb the radar measurement?**
-The radar-side head carries no motors and sits on an arm outside the aperture;
+[after P4; the arm is a task 3 rig item] The radar-side head carries no motors and sits on an arm outside the aperture;
 how far outside is your call. The horn-side motors can be held still during a
 measurement and only correct between measurements, with every correction
 time-stamped.
@@ -263,7 +286,29 @@ fault state with the reason.
 
 ## Proposed changes (for Liam's approval, nothing applied)
 
-See the session report. Summary: track on the criterion instead of a fixed
-drift threshold; add the bias term to the reported result; add a horn-head
-calibration and offset-measurement step; add a "hold" input; replace the wind
-assumption with a measurement as early as task 4.
+Ordered by cost against the Monday deadline.
+
+Documents only:
+- **P6.** CLAUDE.md: record the matched-offset rig rule; record that Monte Carlo
+  is scored against truth and that results must quote the true pass rate and
+  false accepts next to the reported pass rate.
+- **P7.** OPEN_QUESTIONS.md: add (11) does the datum allow a 180 deg rotation
+  about the reference axis, and (12) does the radar integrate over seconds, i.e.
+  does +/-0.05 deg apply to the mean or to the instantaneous pointing.
+- **P5.** Task 4: run `measure_stability.py` on a real tripod as early as
+  possible and replace the wind assumption in config.yaml.
+
+Changes the scope of tasks not yet started:
+- **P3.** Task 5: reversal on every setup instead of a one-time lab calibration;
+  simulate it with independent seat errors and the flipped-position parallax;
+  add the horn-head calibration (flange mirror, after it is verified in the
+  simulator) and the caliper-measured offset mismatch in config.yaml.
+
+Reopens task 2 code:
+- **P1.** Controller: track on the criterion (correct when `|mean| + 2*sigma`
+  approaches the tolerance and `|mean|` is above the deadband) instead of the
+  fixed 0.03 deg drift threshold.
+- **P2.** Reporting: add `U_bias` (calibration uncertainty) to the criterion in
+  the status message and docs/messages.md; the dashboard shows it.
+- **P4.** Controller and dashboard: a "hold" input (no motor motion while the
+  radar measures), every correction time-stamped.

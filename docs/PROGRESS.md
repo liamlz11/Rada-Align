@@ -86,5 +86,6 @@ Template:
     5. Task 4: run measure_stability.py on a real tripod early and replace the wind assumption.
     6. CLAUDE.md: record the matched-offset rig rule; record that Monte Carlo is scored against truth and results must quote true pass rate and false accepts.
     7. OPEN_QUESTIONS: add whether the datum allows a 180 deg rotation, and whether the radar integrates over seconds (mean vs instantaneous).
+  - Corrected after self-review (same day): the flange mirror is seen by the RADAR-side camera with factor 1 (0.0011 deg per 0.3 px), not by the horn camera with factor 2, and is UNVERIFIED until simulated; per-setup reversal does not remove seat error (residual sigma_seat/sqrt(2): 0.0083 deg total for a 0.010 seat and 10 s, 0.0040 deg for a 0.005 seat and 60 s) and loses the matched-offset cancellation in the flipped position (0.069 deg on delta at 2 m for a 5 cm range error, 0.0028 deg for 2 mm). REVIEW.md judge answers 1, 2, 7 are tagged as depending on proposals not yet built. Proposals are numbered P1-P7 in REVIEW.md.
   - Still unanswered from task 2: accept/reject the two changed test tolerances and the two controller changes. WSL pytest unverified (task 0 unticked).
   - Next: task 3 (needs [LIST OF PARTS] and [DISTANCE] from Liam).

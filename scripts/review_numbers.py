@@ -40,7 +40,22 @@ def arithmetic():
         s_mean = math.sqrt(sway**2 * f + jit**2 / (T * rate))
         print(f"reversal: {T:.0f} s per position -> mean sigma {s_mean:.4f} deg, delta sigma (half difference) {s_mean / math.sqrt(2):.4f} deg")
     print(f"track rule: drift threshold 0.03 + 2*sigma 0.03 = {0.03 + 2 * sigma_wind:.3f} deg allowed before a correction")
-    print(f"mirror autocollimation: 0.3 px centroid -> tilt resolution {deg(math.atan(0.3 / 16129)) / 2:.5f} deg (reflection doubles the angle)")
+    # Mirror on the horn flange, seen by the RADAR-side camera (reflection of
+    # the radar-side beacon). Mirror tilt theta moves the virtual image by
+    # 2*d*theta at a distance of 2*d, so the camera sees an angle of theta.
+    print(f"flange mirror seen from the radar head: 0.3 px resolves {deg(math.atan(0.3 / 16129)):.5f} deg of flange tilt (factor 1, not 2)")
+    for d in (12.0, 2.0):
+        print(f"  d={d} m: reflection point moves {d * math.tan(math.radians(0.05)) * 1000:.1f} mm at 0.05 deg tilt, {d * math.tan(math.radians(1.0)) * 1000:.0f} mm at 1 deg")
+    # Reversal with an independent seat error at each of the two seatings:
+    # the estimate of the operating offset is wrong by (f1 + f2) / 2.
+    for seat in (0.010, 0.005):
+        for T, meas in ((10.0, 0.0043), (60.0, 0.0019)):
+            print(f"reversal residual: seat {seat} deg per seating, {T:.0f} s per position -> seat part {seat / math.sqrt(2):.4f}, total {math.hypot(seat / math.sqrt(2), meas):.4f} deg")
+    # In the flipped position the camera is on the other side of the axis, so
+    # the matched-offset cancellation is lost: baseline 2*s = 20 cm.
+    for d, dd in ((12.0, 0.05), (2.0, 0.05), (2.0, 0.002)):
+        err = deg(abs(math.atan(0.20 / d) - math.atan(0.20 / (d + dd))))
+        print(f"reversal, flipped position: d={d} m, range error {dd * 1000:.0f} mm -> {err:.4f} deg on that reading, {err / 2:.4f} deg on delta")
 
 
 def whatif(label, cfg, runs=500):
