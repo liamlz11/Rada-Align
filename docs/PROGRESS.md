@@ -130,3 +130,24 @@ Template:
   - Current controller state for anyone continuing: fixed 0.03 deg drift threshold in TRACK; coarse ALIGN exit at 0.03 deg; combined feed-forward trims; hold input; U_bias reported but not enforced.
   - Liam still to confirm: P2 as report-only; the two changed test tolerances and the two controller changes from task 2. WSL pytest unverified (task 0 unticked).
   - Next: task 3. Needs [LIST OF PARTS] and [DISTANCE].
+
+## 2026-11-14 – Task 3: Demo rig and parts (PARTIAL, box not ticked)
+- Context: Liam does not know yet which parts the hackathon provides, nor the distances; 2 m is the working demo distance. He asked to continue with what is possible.
+- Built: docs/RIG.md written parametrically: rig requirements and part-independent rules (matched offsets, one plate per head, 3-point seat, axis priority X/Z before Pan/Tilt), a text sketch, resolution decision tables for candidate drives and cameras, and the field BOM with datasheet links. scripts/rig_resolution.py produces every resolution number (candidate parts are ASSUMPTIONS). config.yaml NOT changed: there are no real parts to copy from.
+- Tests: `.venv/Scripts/python.exe scripts/rig_resolution.py` ran to the end. No code under rada_align/ changed.
+- Key numbers:
+  - 2 m: tolerance 1.75 mm; +/-1 deg needs +/-35 mm travel. 12 m: 10.47 mm; +/-209 mm.
+  - Pan/tilt deg per step: hobby servo 1.0, stepper direct 1/16 0.1125, 28BYJ-48 0.0879 (all too coarse); stepper + 100:1 worm at 1/16 0.00113; tangent arm (0.5 mm/rev screw, 100 mm arm, full step) 0.00143.
+  - Linear at 2 m: 8 mm lead screw full step 0.00115 deg; GT2 belt full step 0.00573 deg (marginal), 1/16 0.00036 deg.
+  - Cameras: 12 MP 1.55 um + 25 mm lens 0.0036 deg/px; 1080p webcam (70 deg FOV) 0.0418 deg/px, needs 0.12 px centroid for 0.005 deg.
+- Datasheet findings (web search 2026-11-14, links in RIG.md):
+  - TF-Luna range is 0.2-8 m (+/-6 cm to 3 m, +/-2% to 8 m): cannot be the 10-15 m field rangefinder suggested in CHALLENGE.md.
+  - SCL3300: 0.0055 deg is output resolution (182 LSB/deg); offset error up to +/-0.57 deg over temperature. The CHALLENGE.md "inclinometer ~0.005 deg" row confuses resolution with accuracy. Harmless for roll with matched offsets (0.57 deg roll x 2 mm mismatch = 0.0006 deg at 2 m; x 100 mm = 0.0285 deg).
+  - ADXL355 noise density 22.5 ug/sqrt(Hz) = 0.0013 deg rms in 1 Hz.
+  - Raspberry Pi HQ camera: 1.55 um pixels, 4056 x 3040 confirmed, so config.yaml's camera numbers match that part (still marked ASSUMPTION because we do not own it).
+  - SFH 4550 is listed as a narrow-beam ("6 deg") 850 nm LED: the simulator assumes the beacon is visible anywhere in the FOV; not verified.
+- Open issues / next:
+  - To finish task 3: real parts list and distance -> redo RIG.md sections 1-2, copy real values into config.yaml.
+  - Prices were not researched except two rotation-stage listings; all prices [unverified].
+  - Liam still to confirm: P2 as report-only; the two changed test tolerances and the two controller changes from task 2. WSL pytest unverified (task 0 unticked).
+  - Next that needs no hardware: task 4 synthetic-image part, task 5 simulation part, task 6 driver against a mocked port, task 7 dashboard. Tasks 4-7 may run in parallel sessions if Liam asks.
