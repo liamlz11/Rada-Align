@@ -1,4 +1,6 @@
-"""Behaviour added after the design review (docs/REVIEW.md, P1, P2, P4)."""
+"""Behaviour added after the design review (docs/REVIEW.md): P2 U_bias and
+P4 hold. P1 (track on the criterion) was reverted; TRACK uses the fixed drift
+threshold, and its behaviour is pinned here too."""
 
 import pytest
 
@@ -41,7 +43,7 @@ def _run_until_track(sim, ctrl, limit_s=120.0):
 
 
 # Radar tripod settling at 0.03 deg/min: slow enough to align first, then the
-# criterion is lost about a minute later.
+# mean crosses the drift threshold about a minute later.
 SLOW_DRIFT = dict(radar_drift_deg_per_s=(0.0005, 0.0))
 
 
@@ -49,36 +51,36 @@ def _positions(sim):
     return {axis: sim.hardware.actuators.position(axis) for axis in AXES}
 
 
-# ---------------------------------------------------------------- P1: TRACK
-def test_track_corrects_only_when_the_criterion_is_lost():
+# --------------------------------------------------------------------- TRACK
+def test_track_corrects_only_beyond_the_drift_threshold():
     sim, ctrl = _make(QUIET, **SLOW_DRIFT)
     ctrl.start()
     status = _run_until_track(sim, ctrl)
     assert status.corrections == 0
     settled = _positions(sim)
 
-    # While the score is still inside the tolerance nothing moves.
+    # While the mean is inside the drift threshold nothing moves.
     status, events = _run(sim, ctrl, 6.0)
     assert status.state == "TRACK"
-    assert status.errors["radar_az"]["score_deg"] < TOL
+    assert abs(status.errors["radar_az"]["mean_deg"]) < CFG.controller.track_drift_threshold_deg
     assert _positions(sim) == settled
 
     status, events = _run(sim, ctrl, 150.0)
     assert status.corrections >= 1
-    lost = [text for _, text in events if text.startswith("criterion lost")]
-    assert lost and "radar_az" in lost[0]
+    drift = [text for _, text in events if text.startswith("drift ")]
+    assert drift and "radar_az" in drift[0]
     assert abs(sim.world.true_errors_deg()["radar_az"]) < TOL
 
 
 def test_track_does_not_move_for_jitter_it_cannot_fix(monkeypatch):
-    """Mean inside the deadband, jitter just under the "unstable" limit: the
-    criterion fails, but no motor move can fix it, so nothing may move."""
+    """Mean far inside the drift threshold, jitter just under the "unstable"
+    limit: the criterion fails, the display says so, and nothing moves."""
     sim, ctrl = _make(QUIET)
     ctrl.start()
     _run_until_track(sim, ctrl)
     settled = _positions(sim)
 
-    # 0.005 +/- 0.0235 deg: |mean| = 0.005 < deadband, 2*sigma = 0.047 < tol,
+    # 0.005 +/- 0.0235 deg: |mean| = 0.005 < drift threshold, 2*sigma = 0.047 < tol,
     # |mean| + 2*sigma = 0.052 >= tol.
     tick = {"n": 0}
 
@@ -93,9 +95,9 @@ def test_track_does_not_move_for_jitter_it_cannot_fix(monkeypatch):
 
     assert status.state == "TRACK"
     assert status.errors["radar_az"]["score_deg"] >= TOL
-    assert abs(status.errors["radar_az"]["mean_deg"]) < CFG.controller.deadband_deg
+    assert abs(status.errors["radar_az"]["mean_deg"]) < CFG.controller.track_drift_threshold_deg
     assert 2 * status.errors["radar_az"]["sigma_deg"] < TOL
-    assert status.warning.startswith("marginal stability")
+    assert status.warning is None
     assert not status.aligned
     assert status.corrections == 0
     assert not [text for _, text in events if text.startswith("move ")]

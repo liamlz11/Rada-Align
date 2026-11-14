@@ -286,9 +286,13 @@ fault state with the reason.
 
 ## Proposed changes
 
-STATUS: all seven approved by Liam on 2026-11-14 and applied (P1, P2, P4 in code; P3, P5 in
-docs/TASKS.md; P6 in CLAUDE.md; P7 in docs/OPEN_QUESTIONS.md). The W5 item about the fixed
-0.03 deg drift threshold describes the controller before P1.
+STATUS: all seven approved by Liam on 2026-11-14 and applied (P2, P4 in code; P3, P5 in
+docs/TASKS.md; P6 in CLAUDE.md; P7 in docs/OPEN_QUESTIONS.md).
+P1 was then REVERTED the same day on Liam's decision: measured like for like over 120 s of
+tracking it did not improve the true error (28.7% -> 29.5% of 5 s blocks meet the criterion)
+and raised motor corrections from 0.99 to 2.44 per minute. TRACK uses the fixed 0.03 deg drift
+threshold, so W5 item 3 (0.060 deg allowed before a correction) still describes the system.
+P2 is report-only: the pass decision is still |mean| + 2*sigma.
 
 Ordered by cost against the Monday deadline.
 

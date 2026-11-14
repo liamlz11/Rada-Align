@@ -121,3 +121,12 @@ Template:
   - docs/CHALLENGE.md operating flow step 8 still says "drift > 0.03 deg"; not edited.
   - Still unanswered from task 2: two changed test tolerances, two controller changes. WSL pytest unverified.
   - Next: task 3. Needs [LIST OF PARTS] and [DISTANCE].
+
+## 2026-11-14 – P1 reverted (Liam's decision)
+- Built: TRACK is back on the fixed drift threshold (`controller.track_drift_threshold_deg: 0.03`, restored in config.yaml next to `coarse_threshold_deg: 0.03`). P2 (U_bias, report-only) and P4 (hold, time-stamped moves) are kept; hold still defers a TRACK correction. The "marginal stability" warning is gone with P1. tests/test_proposals.py adapted to the fixed-threshold behaviour.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `72 passed in 5.99s`.
+- Key numbers (SIMULATION, assumed parameters): identical to before P1. 100 runs, 12 m, 120 s after ALIGNED: truth meets the criterion in 28.7% of 5 s blocks, system shows aligned 71.7% of the time, 0.99 re-alignments per minute, 0 FAULTs. 500 runs at 12 m: reported pass 100.0%, true pass 35.2%, false accepts 64.8%, pass incl. U_bias 0.0%, 0.18 re-alignments per run in 10 s, gate not triggered.
+- Open issues / next:
+  - Current controller state for anyone continuing: fixed 0.03 deg drift threshold in TRACK; coarse ALIGN exit at 0.03 deg; combined feed-forward trims; hold input; U_bias reported but not enforced.
+  - Liam still to confirm: P2 as report-only; the two changed test tolerances and the two controller changes from task 2. WSL pytest unverified (task 0 unticked).
+  - Next: task 3. Needs [LIST OF PARTS] and [DISTANCE].

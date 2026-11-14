@@ -9,9 +9,10 @@ ALIGN   Quick looks (short window). Corrects X/Z until the radar error is
 VERIFY  One full window scored with the pass criterion |mean| + 2*sigma <
         tolerance on all four axes. On a miss it trims every axis whose
         |mean| is above the deadband and verifies again.
-TRACK   Rolling window scored with the same criterion. When an axis fails
-        it and its |mean| is above the deadband, it trims and verifies
-        again; warns when vibration makes the criterion impossible.
+TRACK   Rolling window. When |mean| drifts beyond the drift threshold it
+        trims and verifies again; warns when vibration makes the criterion
+        impossible. (Tracking on the criterion itself was tried and
+        reverted: same true error, 2.5x the motor motion.)
 HOLD    External input (radar is measuring): no motor motion. Alignment
         pauses; in TRACK the correction waits until hold is released.
 
@@ -468,25 +469,21 @@ class Controller:
         if unstable:
             self._warning = "unstable conditions: " + self._unstable_text(stats, unstable)
             return  # do not chase vibration with the motors
-        failing = [a for a in ERROR_AXES if stats[a].score >= self._tol]
-        if not failing:
+        threshold = self.cfg.controller.track_drift_threshold_deg
+        drifted = [a for a in ERROR_AXES if abs(stats[a].mean) > threshold]
+        if not drifted:
             self._warning = None
             self._pending = False
             return
-        worst = max(failing, key=lambda a: stats[a].score)
-        detail = f"|mean| + 2*sigma = {stats[worst].score:.3f} deg on {worst}"
-        deadband = self.cfg.controller.deadband_deg
-        if not any(abs(stats[a].mean) > deadband for a in failing):
-            # The mean is fine; it is the jitter. Moving the motors cannot help.
-            self._warning = f"marginal stability: {detail}, mean inside the deadband"
-            return
+        worst = max(drifted, key=lambda a: abs(stats[a].mean))
+        detail = f"drift {stats[worst].mean:+.3f} deg on {worst}"
         if self._hold:
             self._warning = f"correction pending (hold): {detail}"
             if not self._pending:
                 self._pending = True
                 self._event(now, self._warning)
             return
-        self._event(now, f"criterion lost: {detail}, re-aligning")
+        self._event(now, f"{detail}, re-aligning")
         self._warning = None
         self._pending = False
         self._corrections += 1
@@ -494,7 +491,7 @@ class Controller:
         self._verify_attempts = 0
         self._unstable_count = 0
         self._aligned = False
-        self._correct(now, stats, deadband, combined=True)
+        self._correct(now, stats, self.cfg.controller.deadband_deg, combined=True)
         if self.state is not State.FAULT:
             self._begin(State.ALIGN, "trim", now)
 

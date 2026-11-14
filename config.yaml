@@ -78,6 +78,7 @@ controller:
   max_iterations: 30               # DESIGN: coarse corrections before FAULT
   max_verify_attempts: 6           # DESIGN: verify windows before FAULT
   coarse_threshold_deg: 0.03       # DESIGN: coarse ALIGN corrects errors above this; VERIFY trims the rest
+  track_drift_threshold_deg: 0.03  # DESIGN (CHALLENGE.md operating flow, step 8): TRACK re-aligns when |mean| exceeds this
   acquire_frames: 5                # DESIGN: consecutive valid frames on both cameras
   acquire_timeout_s: 60.0          # DESIGN
   lost_frames: 10                  # DESIGN: consecutive invalid frames before re-acquiring

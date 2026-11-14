@@ -101,6 +101,7 @@ class ControllerCfg:
     max_iterations: int
     max_verify_attempts: int
     coarse_threshold_deg: float
+    track_drift_threshold_deg: float
     acquire_frames: int
     acquire_timeout_s: float
     lost_frames: int
