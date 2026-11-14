@@ -89,3 +89,20 @@ Template:
   - Corrected after self-review (same day): the flange mirror is seen by the RADAR-side camera with factor 1 (0.0011 deg per 0.3 px), not by the horn camera with factor 2, and is UNVERIFIED until simulated; per-setup reversal does not remove seat error (residual sigma_seat/sqrt(2): 0.0083 deg total for a 0.010 seat and 10 s, 0.0040 deg for a 0.005 seat and 60 s) and loses the matched-offset cancellation in the flipped position (0.069 deg on delta at 2 m for a 5 cm range error, 0.0028 deg for 2 mm). REVIEW.md judge answers 1, 2, 7 are tagged as depending on proposals not yet built. Proposals are numbered P1-P7 in REVIEW.md.
   - Still unanswered from task 2: accept/reject the two changed test tolerances and the two controller changes. WSL pytest unverified (task 0 unticked).
   - Next: task 3 (needs [LIST OF PARTS] and [DISTANCE] from Liam).
+
+## 2026-11-14 – Review proposals P1-P7 applied (Liam: "approve all")
+- Built:
+  - P1 controller: TRACK corrects when an axis fails |mean|+2*sigma < tol AND its |mean| > deadband (was: fixed 0.03 deg drift threshold). Jitter-only failures warn "marginal stability" and do not move. Config key `track_drift_threshold_deg` renamed `coarse_threshold_deg` (same value 0.03, now only the coarse ALIGN exit).
+  - P2: `HeadCalibration.u_delta_deg` (1 sigma). Status and `after` carry `u_bias_deg` (= 2*u_delta) and `score_with_bias_deg`; status has `aligned_with_bias`. The pass DECISION is unchanged (|mean|+2*sigma); U_bias is reported, not enforced. Monte Carlo prints "pass incl. U_bias".
+  - P4: `Controller.set_hold(bool)`. Hold stops motion at once; ACQUIRE/ALIGN/VERIFY pause (phase "hold") and re-measure on release; TRACK keeps measuring and defers the correction (warning "correction pending (hold)"). Every motor command is logged as a time-stamped `move` event.
+  - P3, P5: docs/TASKS.md tasks 5 and 4. P6: CLAUDE.md (rig rule; Monte Carlo scored against truth). P7: OPEN_QUESTIONS 11, 12. docs/messages.md is now v1.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `72 passed in 6.69s` (8 new in tests/test_proposals.py).
+- Key numbers (SIMULATION, assumed parameters, 500 runs, seed 0):
+  - 12 m: verify-window results unchanged (true residual p95 0.036-0.042 deg, reported pass 100.0%, true pass 35.2%, false accepts 64.8%). Pass incl. U_bias: 0.0% (U_bias is 0.036 deg on the radar axes and 0.030 deg on the horn axes with the assumed calibration, so the strict claim is impossible until calibration improves). Re-alignments in the 10 s tracking period: 0.52 per run (was 0.18).
+  - 2 m: true pass 32.8%, reported 99.8%, pass incl. U_bias 0.0%, re-alignments 0.59 per run (was 0.17).
+  - 200 runs with 120 s of tracking at 12 m: 0 FAULTs after ALIGNED; 4.88 re-alignments per run = 2.44 per minute.
+- Open issues / next:
+  - Cost of P1: with the assumed wind the tracker moves 2.4 times per minute, because 2*sigma = 0.03 leaves only 0.02 deg for the mean. It follows the criterion as approved; it gets quiet only with less wind or the answer to open question 12.
+  - "aligned_with_bias" is never true with the assumed calibration. The dashboard must not hide that.
+  - Still unanswered from task 2: accept/reject the two changed test tolerances and the two controller changes. WSL pytest unverified (task 0 unticked).
+  - Next: task 3. Needs from Liam: [LIST OF PARTS] and [DISTANCE].
