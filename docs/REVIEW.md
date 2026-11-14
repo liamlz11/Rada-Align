@@ -232,14 +232,14 @@ on proposal n below being approved and implemented. Do not use them as they
 stand in the pitch or the demo script until then.
 
 **1. How do you know the camera axis is the radar's mechanical axis?**
-[after P2, P3] By reversal: the head is measured in two orientations 180 deg apart about the
+[after P3 = task 5] By reversal: the head is measured in two orientations 180 deg apart about the
 datum axis, the mean is the true axis and half the difference is the camera
 offset. It is repeated on every setup and its uncertainty is added to the
 reported result. Seat repeatability is not removed by this and is budgeted
 separately. What we still need from you is which datum feature we may use.
 
 **2. Your screen says 0.01 deg. Why should I believe it?**
-[after P2; the ground-truth check is task 9] You should not believe the screen alone, and we do not ask you to. Our simulator
+[the ground-truth check is task 9] You should not believe the screen alone, and we do not ask you to. Our simulator
 scores the system against the true geometry, and with our first assumptions the
 system was right only 35% of the time it said "aligned", because of the datum
 transfer. That is why the result is reported with a bias term and checked
@@ -273,7 +273,7 @@ prove outdoor stability or the datum transfer, and we say which numbers come
 from simulation.
 
 **7. Will your hardware disturb the radar measurement?**
-[after P4; the arm is a task 3 rig item] The radar-side head carries no motors and sits on an arm outside the aperture;
+[the arm is a task 3 rig item] The radar-side head carries no motors and sits on an arm outside the aperture;
 how far outside is your call. The horn-side motors can be held still during a
 measurement and only correct between measurements, with every correction
 time-stamped.
@@ -284,7 +284,11 @@ In simulation about 22 s on average and 31 s at the 95th percentile from a
 operator sees the error before, the residual after, and a clear aligned or
 fault state with the reason.
 
-## Proposed changes (for Liam's approval, nothing applied)
+## Proposed changes
+
+STATUS: all seven approved by Liam on 2026-11-14 and applied (P1, P2, P4 in code; P3, P5 in
+docs/TASKS.md; P6 in CLAUDE.md; P7 in docs/OPEN_QUESTIONS.md). The W5 item about the fixed
+0.03 deg drift threshold describes the controller before P1.
 
 Ordered by cost against the Monday deadline.
 

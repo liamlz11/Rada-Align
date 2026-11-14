@@ -74,6 +74,12 @@ def summarize(results: list[RunResult], tolerance_deg: float) -> dict:
         return all(r.truth_verify[a]["score_deg"] < tolerance_deg for a in ERROR_AXES)
 
     true_pass = [r for r in aligned if truly_passes(r)]
+    # Stricter claim: the system's own score plus U_bias is inside the tolerance.
+    with_bias = [
+        r for r in aligned
+        if all(r.reported[a]["score_with_bias_deg"] < tolerance_deg for a in ERROR_AXES)
+    ]
+    with_bias_wrong = [r for r in with_bias if not truly_passes(r)]
     times = np.array([r.t_aligned_s for r in aligned])
     faults = Counter(_fault_category(r.fault_reason) for r in results if not r.aligned)
     return {
@@ -84,6 +90,8 @@ def summarize(results: list[RunResult], tolerance_deg: float) -> dict:
         "reported_pass_rate": len(aligned) / n,
         "true_pass_rate": len(true_pass) / n,
         "false_accept_rate": (len(aligned) - len(true_pass)) / len(aligned) if aligned else None,
+        "with_bias_pass_rate": len(with_bias) / n,
+        "with_bias_false_accept_rate": len(with_bias_wrong) / len(with_bias) if with_bias else None,
         "not_aligned": dict(faults),
         "time_to_align_s": {
             "mean": float(times.mean()),
@@ -165,6 +173,10 @@ def format_summary(summary: dict) -> str:
     lines.append(f"true pass rate (truth meets the criterion): {summary['true_pass_rate']:.1%}")
     if summary["false_accept_rate"] is not None:
         lines.append(f"false accepts (ALIGNED but truth fails):    {summary['false_accept_rate']:.1%}")
+    line = f"pass incl. U_bias (score + 2*u_delta < tol):   {summary['with_bias_pass_rate']:.1%}"
+    if summary["with_bias_false_accept_rate"] is not None:
+        line += f", of which truth fails {summary['with_bias_false_accept_rate']:.1%}"
+    lines.append(line)
     if summary["time_to_align_s"]:
         t = summary["time_to_align_s"]
         lines.append(f"time to ALIGNED: mean {t['mean']:.1f} s, p95 {t['p95']:.1f} s, max {t['max']:.1f} s")

@@ -17,6 +17,7 @@ R1 autonomous detection of Az/El errors | R2 measure orientation of radar AND ho
 - Mutual sighting: each side has camera + IR LED beacon + dual-axis inclinometer. The radar-side head clamps to the radar mechanical datum, outside the RF aperture.
 - Radar stays fixed. Horn on a motorized mount: X, Z, Pan, Tilt (steppers + worm gear, ESP32).
 - Parallax correction is mandatory: eps = atan((u - cx) / f) - delta_calib - s / d.
+- Rig rule: matched offsets. Each beacon mirrors the opposite camera, so the parallax baseline is ~0.
 - State machine: IDLE -> ACQUIRE -> ALIGN -> VERIFY -> TRACK -> FAULT. Correct Z/X first, then Pan/Tilt.
 - Python package `rada_align`. Hardware sits behind interfaces Camera, Inclinometer, Rangefinder, Actuators so simulated and real drivers are swappable.
 
@@ -29,6 +30,7 @@ R1 autonomous detection of Az/El errors | R2 measure orientation of radar AND ho
 
 ## Rules
 - NEVER use radar data.
+- Monte Carlo is scored against truth. Always quote true pass rate and false accepts next to the reported pass rate.
 - All component parameters live in config.yaml, each marked "ASSUMPTION - replace with datasheet/measurement". Never present an assumed value as a real spec.
 - Never tune parameters or thresholds to make a test pass. Report failures with the dominant cause.
 - Ask before adding dependencies beyond numpy, scipy, matplotlib, pyyaml, pytest, opencv-python, pyserial, fastapi, uvicorn.

@@ -74,12 +74,14 @@ def draw_scenario(
         radar=HeadCalibration(
             delta_az_deg=nominal[0] + cal_error[0],
             delta_el_deg=nominal[1] + cal_error[1],
+            u_delta_deg=math.hypot(cal.residual_sigma_deg, cal.fixture_repeat_sigma_deg),
             camera_offset_m=cfg.radar_head.camera_offset_m,
             beacon_offset_m=cfg.radar_head.beacon_offset_m,
         ),
         horn=HeadCalibration(
             delta_az_deg=nominal[2] + cal_error[2],
             delta_el_deg=nominal[3] + cal_error[3],
+            u_delta_deg=cal.residual_sigma_deg,
             camera_offset_m=cfg.horn_head.camera_offset_m,
             beacon_offset_m=cfg.horn_head.beacon_offset_m,
         ),

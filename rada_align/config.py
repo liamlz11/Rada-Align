@@ -100,7 +100,7 @@ class ControllerCfg:
     gain: float
     max_iterations: int
     max_verify_attempts: int
-    track_drift_threshold_deg: float
+    coarse_threshold_deg: float
     acquire_frames: int
     acquire_timeout_s: float
     lost_frames: int
@@ -147,6 +147,7 @@ class HeadCalibration:
     # Pixel angle the camera reads for a target exactly on the reference axis.
     delta_az_deg: float
     delta_el_deg: float
+    u_delta_deg: float  # standard uncertainty (1 sigma) of delta, per axis
     camera_offset_m: tuple[float, float]  # [right, up] in the head's body frame
     beacon_offset_m: tuple[float, float]
 

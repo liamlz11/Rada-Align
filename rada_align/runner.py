@@ -66,6 +66,7 @@ def run_single(
     times, truths, states, measured = [], [], [], []
     t_aligned = None
     first_window = None
+    first_after = None
     status = None
     while world.t < max_time_s:
         world.advance(dt)
@@ -80,6 +81,7 @@ def run_single(
             on_tick(status, truth, sim)
         if t_aligned is None and ctrl.verify_window is not None:
             first_window = ctrl.verify_window
+            first_after = status.after
             t_aligned = world.t
         if status.state == State.FAULT.value:
             break
@@ -119,7 +121,7 @@ def run_single(
         verify_attempts=status.verify_attempts,
         corrections=status.corrections,
         before=status.before,
-        reported=status.after if t_aligned is not None else None,
+        reported=first_after,
         truth_verify=truth_verify,
         truth_track=truth_track,
         history=history,

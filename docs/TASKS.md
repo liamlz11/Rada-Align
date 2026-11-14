@@ -60,16 +60,18 @@ rada_align/vision/, implementing Camera:
 2. Beacon detection: ROI around last position, threshold, blob filter (size, circularity), reject saturated or multiple blobs. Frame differencing (LED on minus off) behind a flag.
 3. Subpixel centroid: intensity-weighted with background subtraction. Return u, v, sigma over the window, quality flag.
 4. Intrinsics: chessboard calibration script (cv2.calibrateCamera) saving calib/camera.yaml; undistort points before computing angles.
-5. scripts/measure_stability.py: 30 s of a static LED -> centroid sigma in px and deg, plots.
+5. scripts/measure_stability.py: 30 s of a static LED -> centroid sigma in px and deg, plots. Run it on a real tripod (indoors and outdoors) as early as possible and replace the wind assumption in config.yaml with the measured value (REVIEW W2).
 Tests on synthetic images: Gaussian spot at a known subpixel position recovered within 0.05 px with noise; two spots rejected; saturated spot flagged.
 Must run from native Windows Python (WSL2 has no webcam access by default). Tell me exactly how to run it there.
 Report the measured sigma.
 
 ## 5. Camera-to-datum calibration
-1. docs/CALIBRATION.md: reversal method (measure a distant target, rotate the head 180 deg about the datum axis, measure again; mean = true axis, half difference = camera offset delta) and ground-truth method (known offsets on a ruler/micrometer table at known distance), with distances and repetitions.
+1. docs/CALIBRATION.md: reversal method (measure a distant target, rotate the head 180 deg about the datum axis, measure again; mean = true axis, half difference = camera offset delta) and ground-truth method (known offsets on a ruler/micrometer table at known distance), with distances and repetitions. The reversal is done on EVERY setup, not once in the lab (REVIEW W1).
 2. scripts/calibrate_reversal.py: guides the operator step by step, N measurements per position, computes delta_Az and delta_El with sigma, writes calib/datum.yaml.
-3. Add the reversal procedure to the simulator: recovers a known injected delta; residual calibration error vs N and centroid noise.
+3. Add the reversal procedure to the simulator: recovers a known injected delta; residual calibration error vs N and centroid noise. Model an independent seat error at each of the two seatings and the lost matched-offset cancellation in the flipped position; the result sets u_delta_deg (U_bias) in calib/datum.yaml.
 4. The controller loads calib/datum.yaml and refuses to start without it.
+5. Horn head (REVIEW W3): calibrate the horn camera to the horn's mechanical face. Candidate: flat mirror on the aperture flange seen by the radar-side camera. Verify the geometry in the simulator first; it is UNVERIFIED until then.
+6. Measure the camera/beacon offset mismatch of the built heads with a caliper and put it in config.yaml.
 Test: simulated reversal recovers the injected delta within the predicted sigma.
 
 ## 6. ESP32 firmware + driver

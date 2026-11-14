@@ -9,9 +9,15 @@ ALIGN   Quick looks (short window). Corrects X/Z until the radar error is
 VERIFY  One full window scored with the pass criterion |mean| + 2*sigma <
         tolerance on all four axes. On a miss it trims every axis whose
         |mean| is above the deadband and verifies again.
-TRACK   Rolling window. When |mean| drifts beyond the drift threshold it
-        trims and verifies again; warns when vibration makes the criterion
-        impossible.
+TRACK   Rolling window scored with the same criterion. When an axis fails
+        it and its |mean| is above the deadband, it trims and verifies
+        again; warns when vibration makes the criterion impossible.
+HOLD    External input (radar is measuring): no motor motion. Alignment
+        pauses; in TRACK the correction waits until hold is released.
+
+The pass decision is |mean| + 2*sigma < tolerance. The status also reports
+the same score plus U_bias = 2 * u_delta (calibration uncertainty, which
+the system cannot observe), and whether that stricter score passes.
 FAULT   Motion stopped, with a reason.
 """
 
@@ -45,11 +51,13 @@ class ControllerStatus:
     t_s: float
     state: str
     phase: str
-    aligned: bool
+    aligned: bool  # |mean| + 2*sigma < tolerance on all axes
+    aligned_with_bias: bool  # ... also with U_bias added
+    hold: bool
     fault_reason: str | None
     warning: str | None
     distance_m: float | None
-    errors: dict  # axis -> {last_deg, mean_deg, sigma_deg, score_deg, n}
+    errors: dict  # axis -> {last_deg, mean_deg, sigma_deg, score_deg, u_bias_deg, score_with_bias_deg, n}
     dx_mm: float | None  # horn center off the radar axis, to the radar's right
     dh_mm: float | None  # horn center above the radar axis
     actuators: dict  # axis -> position (mm or deg)
@@ -64,9 +72,16 @@ class ControllerStatus:
         return asdict(self)
 
 
-def _stats_dict(stats: dict[str, AxisStats]) -> dict:
+def _stats_dict(stats: dict[str, AxisStats], u_bias: dict[str, float]) -> dict:
     return {
-        axis: {"mean_deg": s.mean, "sigma_deg": s.sigma, "score_deg": s.score, "n": s.n}
+        axis: {
+            "mean_deg": s.mean,
+            "sigma_deg": s.sigma,
+            "score_deg": s.score,
+            "u_bias_deg": u_bias[axis],
+            "score_with_bias_deg": s.score + u_bias[axis],
+            "n": s.n,
+        }
         for axis, s in stats.items()
     }
 
@@ -97,6 +112,12 @@ class Controller:
         self._clock = clock
         self._intr = intrinsics_from_config(cfg.camera)
         self._tol = cfg.geometry.tolerance_deg
+        # Expanded calibration uncertainty (k = 2) per error axis.
+        self._u_bias = {
+            axis: 2.0 * (calibration.radar if axis in RADAR_AXES else calibration.horn).u_delta_deg
+            for axis in ERROR_AXES
+        }
+        self._hold = False
         self.state = State.IDLE
         self._reset()
 
@@ -112,10 +133,30 @@ class Controller:
         self._phase = ""
         self._aligned = False
 
+    def set_hold(self, hold: bool) -> None:
+        """Hold = the radar is measuring: no motor motion until released."""
+        if hold == self._hold:
+            return
+        now = self._clock()
+        self._hold = hold
+        if hold:
+            self.hw.actuators.stop()
+            self._event(now, "hold on: motion stopped")
+            return
+        self._event(now, "hold off")
+        self._pending = False
+        # Whatever was interrupted is measured again from scratch.
+        if self.state is State.ACQUIRE:
+            self._enter_acquire()
+        elif self.state in (State.ALIGN, State.VERIFY):
+            self._begin(State.ALIGN, "settle", now)
+
     def step(self) -> ControllerStatus:
         now = self._clock()
         sample = self._read(now)
-        if self.state is State.ACQUIRE:
+        if self._hold and self.state in (State.ACQUIRE, State.ALIGN, State.VERIFY):
+            pass  # paused; sensors are still read for the display
+        elif self.state is State.ACQUIRE:
             self._step_acquire(now)
         elif self.state is State.ALIGN:
             self._step_align(now, sample)
@@ -151,6 +192,7 @@ class Controller:
         self._settle_t0: float | None = None
         self._window_t0 = 0.0
         self._events: list = []
+        self._pending = False  # a TRACK correction is waiting for hold to end
 
     def _event(self, now: float, text: str) -> None:
         self._events.append([now, text])
@@ -231,6 +273,7 @@ class Controller:
         except ActuatorError as exc:
             self._fault(now, f"actuator error: {exc}")
             return False
+        self._event(now, f"move {axis} {delta:+.4f} {unit}")
         return True
 
     def _correct(
@@ -355,9 +398,9 @@ class Controller:
             self._fault(now, "unstable: " + self._unstable_text(stats, unstable))
             return
 
-        # Coarse stage ends inside the tracking band, so TRACK does not
-        # immediately call the result a drift.
-        if self._correct(now, stats, self.cfg.controller.track_drift_threshold_deg):
+        # Coarse stage: quick-look windows are too noisy for fine work, so it
+        # only removes errors above the coarse threshold. VERIFY trims the rest.
+        if self._correct(now, stats, self.cfg.controller.coarse_threshold_deg):
             if self.state is State.FAULT:
                 return
             self._iterations += 1
@@ -378,7 +421,7 @@ class Controller:
         self._verify_attempts += 1
         if all(stats[a].score < self._tol for a in ERROR_AXES):
             self._aligned = True
-            self._after = _stats_dict(stats)
+            self._after = _stats_dict(stats, self._u_bias)
             self.verify_window = (self._window_t0, now)
             self._event(now, "ALIGNED")
             self.state = State.TRACK
@@ -425,20 +468,35 @@ class Controller:
         if unstable:
             self._warning = "unstable conditions: " + self._unstable_text(stats, unstable)
             return  # do not chase vibration with the motors
+        failing = [a for a in ERROR_AXES if stats[a].score >= self._tol]
+        if not failing:
+            self._warning = None
+            self._pending = False
+            return
+        worst = max(failing, key=lambda a: stats[a].score)
+        detail = f"|mean| + 2*sigma = {stats[worst].score:.3f} deg on {worst}"
+        deadband = self.cfg.controller.deadband_deg
+        if not any(abs(stats[a].mean) > deadband for a in failing):
+            # The mean is fine; it is the jitter. Moving the motors cannot help.
+            self._warning = f"marginal stability: {detail}, mean inside the deadband"
+            return
+        if self._hold:
+            self._warning = f"correction pending (hold): {detail}"
+            if not self._pending:
+                self._pending = True
+                self._event(now, self._warning)
+            return
+        self._event(now, f"criterion lost: {detail}, re-aligning")
         self._warning = None
-        threshold = self.cfg.controller.track_drift_threshold_deg
-        drifted = [a for a in ERROR_AXES if abs(stats[a].mean) > threshold]
-        if drifted:
-            worst = max(drifted, key=lambda a: abs(stats[a].mean))
-            self._event(now, f"drift {stats[worst].mean:+.3f} deg on {worst}, re-aligning")
-            self._corrections += 1
-            self._iterations = 0
-            self._verify_attempts = 0
-            self._unstable_count = 0
-            self._aligned = False
-            self._correct(now, stats, self.cfg.controller.deadband_deg, combined=True)
-            if self.state is not State.FAULT:
-                self._begin(State.ALIGN, "trim", now)
+        self._pending = False
+        self._corrections += 1
+        self._iterations = 0
+        self._verify_attempts = 0
+        self._unstable_count = 0
+        self._aligned = False
+        self._correct(now, stats, deadband, combined=True)
+        if self.state is not State.FAULT:
+            self._begin(State.ALIGN, "trim", now)
 
     # ---------------------------------------------------------------- status
     def _status(self, now: float) -> ControllerStatus:
@@ -446,8 +504,15 @@ class Controller:
         for axis in ERROR_AXES:
             entry = {"last_deg": self._last_errors[axis] if self._last_errors else None}
             if axis in self._last_stats:
-                s = self._last_stats[axis]
-                entry.update(mean_deg=s.mean, sigma_deg=s.sigma, score_deg=s.score, n=s.n)
+                st = self._last_stats[axis]
+                entry.update(
+                    mean_deg=st.mean,
+                    sigma_deg=st.sigma,
+                    score_deg=st.score,
+                    u_bias_deg=self._u_bias[axis],
+                    score_with_bias_deg=st.score + self._u_bias[axis],
+                    n=st.n,
+                )
             errors[axis] = entry
         d = self._distance.mean
         dx = dh = None
@@ -456,11 +521,19 @@ class Controller:
             dh = d * math.tan(math.radians(self._last_errors["radar_el"])) * 1000.0
         act = self.hw.actuators
         events, self._events = self._events, []
+        paused = self._hold and self.state in (State.ACQUIRE, State.ALIGN, State.VERIFY)
+        with_bias = self._aligned and all(
+            axis in self._last_stats
+            and self._last_stats[axis].score + self._u_bias[axis] < self._tol
+            for axis in ERROR_AXES
+        )
         return ControllerStatus(
             t_s=now,
             state=self.state.value,
-            phase=self._phase,
+            phase="hold" if paused else self._phase,
             aligned=self._aligned,
+            aligned_with_bias=with_bias,
+            hold=self._hold,
             fault_reason=self.fault_reason,
             warning=self._warning,
             distance_m=d,

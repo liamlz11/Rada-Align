@@ -14,3 +14,5 @@ Fill in the answers as soon as you get them, then run task 10 in docs/TASKS.md.
 | 8 | "Real-time correction": may motors move during radar measurement, or only between measurements? | |
 | 9 | May we place components near the radar aperture (RF reflections)? | |
 | 10 | What is expected at submission and what are the judging criteria? Budget or equipment available? | |
+| 11 | Does the datum allow rotating a fixture 180 deg about the reference axis (pins, bore, cylindrical feature), or is it a flat face only? | |
+| 12 | Does the radar integrate over seconds? I.e. does +/-0.05 deg apply to the mean pointing over a measurement or to the instantaneous pointing? | |
