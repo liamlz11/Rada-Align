@@ -34,6 +34,9 @@ Angles in degrees, lengths in millimetres unless the name says otherwise.
 | `corrections` | integer | Re-alignments triggered while tracking |
 | `events` | array | `[t_s, text]` log entries since the previous message. Every motor command appears as `move <axis> <delta> <unit>` |
 | `sim` | bool | `true` when the data comes from the simulator |
+| `seq` | integer | Dashboard session only: message counter |
+| `setup_id` | integer | Dashboard session only: which setup this is (changes on "new setup") |
+| `tolerance_deg` | number | Dashboard session only: the tolerance the page colours against |
 | `truth` | object | Simulator only: the true error per axis, for display and debugging |
 
 Sign conventions: `radar_az` > 0 means the horn center is to the right of the
@@ -44,4 +47,15 @@ Changes from v0: `aligned_with_bias`, `hold`, `u_bias_deg`, `score_with_bias_deg
 phase `hold`, and `move ...` events.
 
 Control input (not part of this message): `Controller.set_hold(True | False)`.
-The dashboard backend (task 7) exposes it.
+
+## Dashboard backend (`python -m rada_align.ui`)
+
+| Endpoint | Meaning |
+| --- | --- |
+| `GET /` | The operator page |
+| `WS /ws` | The message above, one per tick, starting from the latest |
+| `GET /api/state` | Latest message |
+| `POST /api/start`, `/api/stop`, `/api/realign` | Controller commands |
+| `POST /api/hold` with `{"hold": true \| false}` | Hold input |
+| `POST /api/new_setup` | Simulator only: a new random manual setup |
+| `GET /api/report` | Before/after, pass/fail and the event log of the last alignment |

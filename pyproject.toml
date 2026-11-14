@@ -12,13 +12,19 @@ dependencies = [
     "scipy",
     "matplotlib",
     "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "websockets",  # WebSocket support for uvicorn
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "httpx"]  # httpx: FastAPI TestClient
 
 [tool.setuptools.packages.find]
 include = ["rada_align*"]
+
+[tool.setuptools.package-data]
+"rada_align.ui" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

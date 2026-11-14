@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rada-dashboard",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "rada_align.ui", "--port", "8765", "--distance", "2", "--seed", "1"],
+      "port": 8765
+    }
+  ]
+}

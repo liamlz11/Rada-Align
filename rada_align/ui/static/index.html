@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RADA Align – לוח מפעיל</title>
+<style>
+  :root {
+    --bg: #0e1418; --panel: #172026; --line: #2a3840; --text: #e8eef1; --dim: #8fa3ad;
+    --good: #35c27a; --bad: #ef5350; --warn: #f2b84b; --info: #5ab0f0; --accent: #7fd1c7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif; font-size: 15px; }
+  .num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums;
+    font-family: Consolas, "Courier New", monospace; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px;
+    border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .tag { padding: 2px 10px; border-radius: 4px; font-weight: 700; font-size: 13px; }
+  .tag.sim { background: var(--warn); color: #201400; }
+  .tag.state { background: var(--line); }
+  .tag.link.off { background: var(--bad); }
+  .tag.link.on { background: #23463a; color: var(--good); }
+  .spacer { flex: 1; }
+  main { display: grid; gap: 12px; padding: 12px 16px 20px;
+    grid-template-columns: minmax(280px, 1fr) minmax(300px, 420px) minmax(280px, 1fr); }
+  @media (max-width: 1050px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  section h2 { margin: 0 0 8px; font-size: 14px; color: var(--dim); font-weight: 600; }
+  .wide { grid-column: 1 / -1; }
+
+  #banner { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 8px;
+    border: 2px solid var(--line); background: var(--panel); }
+  #banner .big { font-size: 34px; font-weight: 800; line-height: 1.1; }
+  #banner .sub { color: var(--dim); margin-top: 4px; }
+  #banner.strict { border-color: var(--good); background: #12301f; }
+  #banner.strict .big { color: var(--good); }
+  #banner.measured { border-color: var(--good); border-style: dashed; }
+  #banner.measured .big { color: var(--good); }
+  #banner.fault { border-color: var(--bad); background: #3a1616; }
+  #banner.fault .big { color: var(--bad); }
+  #banner.busy .big { color: var(--info); }
+  #warning { color: var(--warn); font-weight: 600; min-height: 1.3em; margin-top: 6px; }
+
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; padding: 10px 16px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--line); background: #22303a; color: var(--text); }
+  button:hover { background: #2c3e4a; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: #1f6f55; border-color: #2a8a6b; }
+  button.primary:hover { background: #26856a; }
+  button.danger { background: #7a2525; border-color: #9a3333; }
+  button.active { background: var(--warn); color: #201400; border-color: var(--warn); }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  .card .label { color: var(--dim); font-size: 13px; }
+  .card .value { font-size: 30px; font-weight: 700; }
+  .card .stats { color: var(--dim); font-size: 12px; }
+  .good { color: var(--good); } .bad { color: var(--bad); } .none { color: var(--dim); }
+  .mm { display: flex; gap: 18px; margin-top: 8px; font-size: 18px; }
+  .mm b { font-weight: 700; }
+
+  canvas { width: 100%; display: block; background: #0b1013; border-radius: 6px; }
+  .toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+  .toggle button { padding: 5px 12px; font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: start; }
+  th { color: var(--dim); font-weight: 600; }
+  #events { max-height: 220px; overflow: auto; font-size: 13px; margin: 0; padding: 0; list-style: none; }
+  #events li { padding: 2px 0; border-bottom: 1px dotted var(--line); display: flex; gap: 8px; }
+  #events .t { color: var(--dim); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-top: 6px; }
+  .legend i { display: inline-block; width: 14px; height: 3px; margin-inline-end: 5px; vertical-align: middle; }
+  .note { color: var(--dim); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RADA Align – יישור horn למכ"ם</h1>
+  <span id="simTag" class="tag sim" hidden>SIM – נתוני סימולציה</span>
+  <span id="stateTag" class="tag state">–</span>
+  <span id="holdTag" class="tag sim" hidden>HOLD – אין תנועת מנועים</span>
+  <span class="spacer"></span>
+  <span>זמן <span id="clock" class="num">0.0</span> ש'</span>
+  <span>מרחק <span id="dist" class="num">–</span> מ'</span>
+  <span id="linkTag" class="tag link off">מנותק</span>
+</header>
+
+<main>
+  <div id="banner" class="wide" role="status" aria-live="polite">
+    <div>
+      <div class="big" id="bannerText">ממתין</div>
+      <div class="sub" id="bannerSub">לחץ "התחל יישור"</div>
+      <div id="warning"></div>
+    </div>
+    <span class="spacer"></span>
+    <div class="buttons">
+      <button class="primary" id="btnStart">התחל יישור</button>
+      <button id="btnRealign">יישר מחדש</button>
+      <button id="btnHold" aria-pressed="false">Hold</button>
+      <button class="danger" id="btnStop">עצור</button>
+      <button id="btnReport">ייצוא דוח</button>
+      <button id="btnSetup" hidden>הצבה חדשה (סימולציה)</button>
+    </div>
+  </div>
+
+  <section>
+    <h2>שגיאת מכ"ם (ציר המכ"ם מול קו הראייה למרכז ה-horn)</h2>
+    <div class="cards">
+      <div class="card"><div class="label">Az</div><div class="value num" id="v_radar_az">–</div><div class="stats" id="s_radar_az"></div></div>
+      <div class="card"><div class="label">El</div><div class="value num" id="v_radar_el">–</div><div class="stats" id="s_radar_el"></div></div>
+    </div>
+    <div class="mm">
+      <span>dx <b class="num" id="dx">–</b> מ"מ</span>
+      <span>dh <b class="num" id="dh">–</b> מ"מ</span>
+    </div>
+    <h2 style="margin-top:14px">שגיאת horn (ציר ה-horn מול קו הראייה למכ"ם)</h2>
+    <div class="cards">
+      <div class="card"><div class="label">Az</div><div class="value num" id="v_horn_az">–</div><div class="stats" id="s_horn_az"></div></div>
+      <div class="card"><div class="label">El</div><div class="value num" id="v_horn_el">–</div><div class="stats" id="s_horn_el"></div></div>
+    </div>
+    <div class="note">מספר גדול: דגימה אחרונה במעלות. מתחתיו: ממוצע ± סטיית תקן בחלון האחרון, והציון |ממוצע| + 2σ מול הסף <span class="num" id="tol">0.05</span>°.</div>
+    <div class="note" id="truthNote" hidden>אמת (קיים רק בסימולציה): <span class="num" id="truth"></span></div>
+  </section>
+
+  <section>
+    <h2>מטרה</h2>
+    <div class="toggle">
+      <button id="bullRadar" class="active">מכ"ם</button>
+      <button id="bullHorn">horn</button>
+    </div>
+    <canvas id="bull" width="420" height="420" aria-label="תרשים מטרה: מעגל הסף, הנקודה הנוכחית והשובל"></canvas>
+    <div class="note">המעגל הירוק: סף <span class="num">0.05</span>°. קנה המידה מתרחב אוטומטית כשהשגיאה גדולה. טבעת חיצונית: <span class="num" id="bullScale"></span></div>
+  </section>
+
+  <section>
+    <h2>יישור אחרון: לפני ואחרי</h2>
+    <table>
+      <thead><tr><th>ציר</th><th>לפני</th><th>אחרי (ממוצע)</th><th>σ</th><th>ציון</th><th>+ כיול</th></tr></thead>
+      <tbody id="beforeAfter"></tbody>
+    </table>
+    <div class="note">"+ כיול": הציון בתוספת אי-ודאות הכיול (U_bias), שגיאה שהמערכת לא יכולה למדוד בעצמה.</div>
+    <h2 style="margin-top:14px">מנועים</h2>
+    <div class="num" id="actuators">–</div>
+    <h2 style="margin-top:14px">יומן אירועים</h2>
+    <ul id="events"></ul>
+  </section>
+
+  <section class="wide">
+    <h2>התכנסות לאורך זמן (מעלות)</h2>
+    <canvas id="chart" width="1200" height="260" aria-label="גרף התכנסות של ארבעת הצירים"></canvas>
+    <div class="legend">
+      <span><i style="background:#5ab0f0"></i>מכ"ם Az</span>
+      <span><i style="background:#7fd1c7"></i>מכ"ם El</span>
+      <span><i style="background:#f2b84b"></i>horn Az</span>
+      <span><i style="background:#e58ad0"></i>horn El</span>
+      <span><i style="background:#35c27a"></i>סף ±0.05°</span>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const AXES = ["radar_az", "radar_el", "horn_az", "horn_el"];
+const AXIS_NAME = { radar_az: 'מכ"ם Az', radar_el: 'מכ"ם El', horn_az: "horn Az", horn_el: "horn El" };
+const COLORS = { radar_az: "#5ab0f0", radar_el: "#7fd1c7", horn_az: "#f2b84b", horn_el: "#e58ad0" };
+const STATE_NAME = { IDLE: "ממתין", ACQUIRE: "מחפש משואות", ALIGN: "מיישר", VERIFY: "מאמת", TRACK: "עוקב", FAULT: "תקלה" };
+const $ = (id) => document.getElementById(id);
+let tol = 0.05, last = null, bullSide = "radar";
+const history = [];   // {t, v: [4]}
+const HISTORY_S = 90;
+
+const fmt = (x, d = 3) => (x === null || x === undefined || Number.isNaN(x)) ? "–" : (x >= 0 ? "+" : "") + x.toFixed(d);
+const cls = (x) => (x === null || x === undefined) ? "none" : (Math.abs(x) < tol ? "good" : "bad");
+
+function post(path, body) {
+  return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+}
+
+function connect() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws.onopen = () => { $("linkTag").textContent = "מחובר"; $("linkTag").className = "tag link on"; };
+  ws.onmessage = (e) => update(JSON.parse(e.data));
+  ws.onclose = () => { $("linkTag").textContent = "מנותק"; $("linkTag").className = "tag link off"; setTimeout(connect, 1000); };
+}
+
+function update(m) {
+  if (last && (m.setup_id !== last.setup_id || m.t_s < last.t_s)) { history.length = 0; $("events").innerHTML = ""; }
+  last = m;
+  tol = m.tolerance_deg || tol;
+  $("tol").textContent = tol.toFixed(2);
+  $("simTag").hidden = !m.sim;
+  $("btnSetup").hidden = !m.sim;
+  $("holdTag").hidden = !m.hold;
+  $("btnHold").classList.toggle("active", m.hold);
+  $("btnHold").setAttribute("aria-pressed", m.hold ? "true" : "false");
+  $("stateTag").textContent = (STATE_NAME[m.state] || m.state) + (m.phase ? " · " + m.phase : "");
+  $("clock").textContent = m.t_s.toFixed(1);
+  $("dist").textContent = m.distance_m ? m.distance_m.toFixed(2) : "–";
+
+  for (const a of AXES) {
+    const e = m.errors[a];
+    $("v_" + a).textContent = fmt(e.last_deg);
+    $("v_" + a).className = "value num " + cls(e.last_deg);
+    $("s_" + a).innerHTML = e.mean_deg === undefined ? "" :
+      `<span class="num">${fmt(e.mean_deg, 4)} ± ${e.sigma_deg.toFixed(4)}</span> · ציון ` +
+      `<span class="num ${e.score_deg < tol ? "good" : "bad"}">${e.score_deg.toFixed(4)}</span>`;
+  }
+  $("dx").textContent = fmt(m.dx_mm, 2);
+  $("dh").textContent = fmt(m.dh_mm, 2);
+  if (m.truth) {
+    $("truthNote").hidden = false;
+    $("truth").textContent = AXES.map((a) => fmt(m.truth[a], 4)).join("   ");
+  }
+  $("actuators").textContent =
+    `X ${fmt(m.actuators.x, 2)} mm   Z ${fmt(m.actuators.z, 2)} mm   Pan ${fmt(m.actuators.pan, 3)}°   Tilt ${fmt(m.actuators.tilt, 3)}°`;
+
+  banner(m);
+  beforeAfter(m);
+  for (const [t, text] of m.events) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="t num">${t.toFixed(1)}s</span><span class="num"></span>`;
+    li.lastChild.textContent = text;
+    $("events").prepend(li);
+  }
+  if (m.errors.radar_az.last_deg !== null) {
+    history.push({ t: m.t_s, v: AXES.map((a) => m.errors[a].last_deg) });
+    while (history.length && m.t_s - history[0].t > HISTORY_S) history.shift();
+  }
+  drawBull();
+  drawChart();
+}
+
+function banner(m) {
+  const b = $("banner");
+  let kind = "", text = STATE_NAME[m.state] || m.state, sub = "";
+  if (m.state === "FAULT") { kind = "fault"; text = "תקלה – היישור נעצר"; sub = m.fault_reason || ""; }
+  else if (m.aligned_with_bias) { kind = "strict"; text = "מיושר"; sub = "עומד בסף גם כולל אי-ודאות הכיול"; }
+  else if (m.aligned) {
+    kind = "measured"; text = "מיושר לפי המדידה";
+    const u = Math.max(...AXES.map((a) => m.errors[a].u_bias_deg || 0));
+    sub = `אי-ודאות הכיול (עד ±${u.toFixed(3)}°) אינה כלולה, ואיתה הסף לא מובטח`;
+  }
+  else if (m.state === "IDLE") { text = "ממתין"; sub = 'לחץ "התחל יישור"'; }
+  else if (m.state === "TRACK") { kind = "busy"; text = "עוקב – מחוץ לקריטריון"; sub = "הציון |ממוצע| + 2σ מעל הסף כרגע"; }
+  else { kind = "busy"; sub = m.hold ? "מושהה (Hold): אין תנועת מנועים" : `תיקונים: ${m.iterations}, חלונות אימות: ${m.verify_attempts}`; }
+  b.className = "wide " + kind;
+  $("bannerText").textContent = text;
+  $("bannerSub").textContent = sub;
+  $("warning").textContent = m.warning ? "אזהרה: " + m.warning : "";
+}
+
+function beforeAfter(m) {
+  const rows = AXES.map((a) => {
+    const before = m.before ? m.before[a] : null;
+    const af = m.after ? m.after[a] : null;
+    const td = (x, d, c) => `<td class="num ${c || ""}">${fmt(x, d)}</td>`;
+    return `<tr><td>${AXIS_NAME[a]}</td>${td(before, 3, cls(before))}` +
+      (af ? td(af.mean_deg, 4, cls(af.mean_deg)) + `<td class="num">${af.sigma_deg.toFixed(4)}</td>` +
+            `<td class="num ${af.score_deg < tol ? "good" : "bad"}">${af.score_deg.toFixed(4)}</td>` +
+            `<td class="num ${af.score_with_bias_deg < tol ? "good" : "bad"}">${af.score_with_bias_deg.toFixed(4)}</td>`
+          : "<td>–</td><td>–</td><td>–</td><td>–</td>") + "</tr>";
+  });
+  $("beforeAfter").innerHTML = rows.join("");
+}
+
+function drawBull() {
+  const c = $("bull"), g = c.getContext("2d"), W = c.width, H = c.height, cx = W / 2, cy = H / 2, R = W / 2 - 24;
+  const ia = bullSide === "radar" ? 0 : 2;
+  g.clearRect(0, 0, W, H);
+  const cur = history.length ? history[history.length - 1].v : null;
+  const mag = cur ? Math.hypot(cur[ia], cur[ia + 1]) : 0;
+  const range = Math.max(0.1, Math.min(2.5, mag * 1.3));   // degrees at the outer ring
+  $("bullScale").textContent = `${range.toFixed(2)}°`;
+  const px = (deg) => deg / range * R;
+  g.strokeStyle = "#2a3840"; g.lineWidth = 1;
+  for (const f of [0.25, 0.5, 0.75, 1]) { g.beginPath(); g.arc(cx, cy, R * f, 0, 2 * Math.PI); g.stroke(); }
+  g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+  g.strokeStyle = "#35c27a"; g.lineWidth = 2; g.fillStyle = "rgba(53,194,122,0.12)";
+  g.beginPath(); g.arc(cx, cy, Math.max(px(tol), 2), 0, 2 * Math.PI); g.fill(); g.stroke();
+  // trail: last 15 s
+  const tNow = history.length ? history[history.length - 1].t : 0;
+  g.lineWidth = 1.5;
+  let prev = null;
+  for (const h of history) {
+    const age = tNow - h.t;
+    if (age > 15) continue;
+    const p = clamp(cx + px(h.v[ia]), cy - px(h.v[ia + 1]));
+    if (prev) { g.strokeStyle = `rgba(143,163,173,${0.6 * (1 - age / 15) + 0.1})`; g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(p[0], p[1]); g.stroke(); }
+    prev = p;
+  }
+  if (cur) {
+    const p = clamp(cx + px(cur[ia]), cy - px(cur[ia + 1]));
+    g.fillStyle = mag < tol ? "#35c27a" : "#ef5350";
+    g.beginPath(); g.arc(p[0], p[1], 7, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = "#e8eef1"; g.lineWidth = 1.5; g.stroke();
+  }
+  g.fillStyle = "#8fa3ad"; g.font = "12px Consolas, monospace";
+  g.textAlign = "center"; g.fillText("El +", cx, 14); g.fillText("Az +", W - 22, cy - 6);
+  function clamp(x, y) {
+    const dx = x - cx, dy = y - cy, r = Math.hypot(dx, dy);
+    return r > R ? [cx + dx / r * R, cy + dy / r * R] : [x, y];
+  }
+}
+
+function drawChart() {
+  const c = $("chart"), g = c.getContext("2d"), W = c.width, H = c.height;
+  const L = 56, Rm = 10, T = 8, B = 22;
+  g.clearRect(0, 0, W, H);
+  if (!history.length) return;
+  const t1 = history[history.length - 1].t, t0 = Math.max(history[0].t, t1 - HISTORY_S);
+  // symmetric log-like scale so both 1 deg and 0.01 deg are readable
+  const LIN = 0.1;
+  const tr = (v) => Math.sign(v) * (Math.abs(v) <= LIN ? Math.abs(v) / LIN : 1 + Math.log10(Math.abs(v) / LIN));
+  const maxAbs = Math.max(0.2, ...history.map((h) => Math.max(...h.v.map(Math.abs))));
+  const top = tr(maxAbs) * 1.05;
+  const X = (t) => L + (t - t0) / Math.max(t1 - t0, 1) * (W - L - Rm);
+  const Y = (v) => T + (top - tr(v)) / (2 * top) * (H - T - B);
+  g.fillStyle = "rgba(53,194,122,0.13)"; g.fillRect(L, Y(tol), W - L - Rm, Y(-tol) - Y(tol));
+  g.strokeStyle = "#2a3840"; g.fillStyle = "#8fa3ad"; g.font = "11px Consolas, monospace"; g.textAlign = "right"; g.lineWidth = 1;
+  for (const v of [-1, -0.1, -0.05, 0, 0.05, 0.1, 1]) {
+    if (Math.abs(tr(v)) > top) continue;
+    g.beginPath(); g.moveTo(L, Y(v)); g.lineTo(W - Rm, Y(v)); g.stroke();
+    g.fillText((v > 0 ? "+" : "") + v, L - 6, Y(v) + 4);
+  }
+  g.textAlign = "center";
+  for (let t = Math.ceil(t0 / 10) * 10; t <= t1; t += 10) g.fillText(t + "s", X(t), H - 6);
+  AXES.forEach((a, i) => {
+    g.strokeStyle = COLORS[a]; g.lineWidth = 1.6; g.beginPath();
+    let started = false;
+    for (const h of history) {
+      if (h.t < t0) continue;
+      const x = X(h.t), y = Y(h.v[i]);
+      if (started) g.lineTo(x, y); else { g.moveTo(x, y); started = true; }
+    }
+    g.stroke();
+  });
+}
+
+async function exportReport() {
+  const r = await (await fetch("/api/report")).json();
+  const when = new Date(r.generated_unix_s * 1000);
+  const row = (a) => {
+    const b = r.before ? r.before[a] : null, af = r.after ? r.after[a] : null;
+    return `<tr><td>${AXIS_NAME[a]}</td><td>${fmt(b, 4)}</td><td>${af ? fmt(af.mean_deg, 4) : "–"}</td>` +
+      `<td>${af ? af.sigma_deg.toFixed(4) : "–"}</td><td>${af ? af.score_deg.toFixed(4) : "–"}</td>` +
+      `<td>${af ? af.score_with_bias_deg.toFixed(4) : "–"}</td></tr>`;
+  };
+  const html = `<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><title>דוח יישור</title>
+<style>body{font-family:Arial,sans-serif;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 10px;direction:ltr;text-align:right}
+.ok{color:#0a7a3f;font-weight:bold}.no{color:#b00020;font-weight:bold}</style>
+<h1>דוח יישור horn למכ"ם</h1>
+<p>${when.toLocaleString("he-IL")} · הצבה ${r.setup_id} · מרחק ${r.distance_m ? r.distance_m.toFixed(2) : "–"} מ' · סף ${r.tolerance_deg}°</p>
+${r.sim ? '<p class="no">נתוני סימולציה עם פרמטרים מונחים. לא ביצועי חומרה.</p>' : ""}
+<p>תוצאה לפי המדידה (|ממוצע| + 2σ &lt; סף): <span class="${r.passed ? "ok" : "no"}">${r.passed ? "עבר" : "לא עבר"}</span>
+ · כולל אי-ודאות כיול: <span class="${r.aligned_with_bias ? "ok" : "no"}">${r.aligned_with_bias ? "עבר" : "לא מובטח"}</span></p>
+${r.fault_reason ? `<p class="no">תקלה: <span dir="ltr">${r.fault_reason}</span></p>` : ""}
+<table><tr><th>ציר</th><th>לפני (°)</th><th>אחרי, ממוצע (°)</th><th>σ (°)</th><th>ציון (°)</th><th>ציון + כיול (°)</th></tr>
+${AXES.map(row).join("")}</table>
+<p>יישורים מחדש בזמן מעקב: ${r.corrections}</p>
+<h2>יומן אירועים</h2><pre dir="ltr">${r.events.map(([t, x]) => t.toFixed(1).padStart(7) + " s  " + x).join("\n")}</pre></html>`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  a.download = `rada-align-report-${when.toISOString().replace(/[:.]/g, "-")}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("btnStart").onclick = () => post("/api/start");
+$("btnRealign").onclick = () => post("/api/realign");
+$("btnStop").onclick = () => post("/api/stop");
+$("btnHold").onclick = () => post("/api/hold", { hold: !(last && last.hold) });
+$("btnSetup").onclick = () => post("/api/new_setup");
+$("btnReport").onclick = exportReport;
+$("bullRadar").onclick = () => { bullSide = "radar"; $("bullRadar").classList.add("active"); $("bullHorn").classList.remove("active"); drawBull(); };
+$("bullHorn").onclick = () => { bullSide = "horn"; $("bullHorn").classList.add("active"); $("bullRadar").classList.remove("active"); drawBull(); };
+connect();
+</script>
+</body>
+</html>

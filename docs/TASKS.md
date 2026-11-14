@@ -11,7 +11,7 @@ Suggested effort: high by default; xhigh for tasks 1, 2 (planning) and 5.
 - [ ] 4. Camera beacon detection
 - [ ] 5. Camera-to-datum calibration
 - [ ] 6. ESP32 firmware + driver
-- [ ] 7. Operator dashboard
+- [x] 7. Operator dashboard
 - [ ] 8. Integration and tabletop demo
 - [ ] 9. Validation suite R1-R11
 - [ ] 10. Update from mentor answers

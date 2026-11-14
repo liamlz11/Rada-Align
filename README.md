@@ -30,6 +30,20 @@ pytest -q
 
 Camera and ESP32 code must run from the Windows venv (WSL2 has no USB webcam or serial access by default).
 
+## Run
+
+Simulator (Monte Carlo table and plots in ./out):
+
+```bash
+python -m rada_align.sim --runs 500 --distance 12
+```
+
+Operator dashboard against the simulator, then open http://127.0.0.1:8000 :
+
+```bash
+python -m rada_align.ui --distance 2
+```
+
 ## Docs
 
 - Start here: CLAUDE.md

@@ -151,3 +151,16 @@ Template:
   - Prices were not researched except two rotation-stage listings; all prices [unverified].
   - Liam still to confirm: P2 as report-only; the two changed test tolerances and the two controller changes from task 2. WSL pytest unverified (task 0 unticked).
   - Next that needs no hardware: task 4 synthetic-image part, task 5 simulation part, task 6 driver against a mocked port, task 7 dashboard. Tasks 4-7 may run in parallel sessions if Liam asks.
+
+## 2026-11-14 – Task 7: Operator dashboard
+- Working mode from here on: Liam said "trust you on all decisions, just keep working". No more waiting for per-task plan approval; decisions are reported after the fact. STOP gates in docs/TASKS.md (flash, first motor motion, Monte Carlo gate) still need his explicit OK.
+- Built: rada_align/ui/ (session.py: one Controller + simulated rig stepped in real time on a background thread; server.py: FastAPI app, WebSocket /ws, REST commands; __main__.py: `python -m rada_align.ui`; static/index.html: one page, Hebrew RTL, no framework, no build step, no CDN). Page shows big numbers for radar/horn Az/El (green inside 0.05 deg), dx/dh in mm, bullseye with the tolerance circle and a 15 s trail (auto-zoom), convergence chart (symmetric log scale), state/phase/warning/fault reason, before/after table incl. score with U_bias, actuator positions, time-stamped event log, SIM tag and truth (simulator only). Buttons: start, re-align, Hold, stop, export report (client-side HTML download), new setup (simulator only). ALIGNED banner has three states: not aligned / "aligned by measurement" (dashed, says calibration uncertainty is not included) / aligned incl. calibration uncertainty.
+- Decisions made without asking: added dependencies fastapi, uvicorn, websockets (WebSocket support for uvicorn) and httpx as a dev dependency (FastAPI TestClient); the simulator runs inside the server process instead of piping `--stream`, so the buttons really drive the controller (same message schema); extra message fields seq, setup_id, tolerance_deg; .claude/launch.json for the preview server.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `77 passed, 1 warning in 6.88s` (5 new in tests/test_ui.py; the warning is starlette saying httpx is deprecated in favour of httpx2 for TestClient).
+- Browser check (built-in browser, http://localhost:8765, 2 m, seed 1): page loads, WebSocket connects, Start runs ACQUIRE -> ALIGN -> VERIFY -> TRACK with live numbers, bullseye and chart; ALIGNED event at 21.0 s; Hold shows the HOLD tag and logs "hold on: motion stopped" / "hold off"; no console errors; no horizontal scroll at 1440 px; single-column layout at 800 px.
+- Open issues / next:
+  - Run: `python -m rada_align.ui --distance 2`, open http://127.0.0.1:8000.
+  - Not checked: other browsers, phone-size layout, a second simultaneous client, the downloaded report file itself (the /api/report data is tested).
+  - Task 8 plugs the real hardware into Session._build(); the page needs no change.
+  - Liam still to confirm: P2 as report-only; two changed test tolerances and two controller changes from task 2. WSL pytest unverified (task 0). Task 3 partial (needs parts list).
+  - Next without hardware: task 5 simulation part, task 4 synthetic part, task 6 driver against a mocked port.
