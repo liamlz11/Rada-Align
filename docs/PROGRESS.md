@@ -69,3 +69,22 @@ Template:
   - Task 3 must build the rig with matched offsets and put the measured mismatch into config.yaml.
   - WSL pytest run still unverified (task 0 unticked). Task 1 still open.
   - Next: task 1 (design review) unless Liam names another.
+
+## 2026-11-14 – Task 1: Design review (red team)
+- Built: docs/REVIEW.md (5 weakest points with mechanism, size, cheapest fix; optimistic budget entries; 8 judge questions). scripts/review_numbers.py reproduces every number in it.
+- Tests: `.venv/Scripts/python.exe scripts/review_numbers.py` ran to the end (arithmetic + 10 what-if Monte Carlos, 500 runs each at 12 m, seed 0). No code under rada_align/ changed; pytest still `64 passed`.
+- Key numbers (SIMULATION, 12 m, true pass rate = truth meets |mean|+2*sigma<0.05):
+  - baseline 35.2% (reported 100.0%); no calibration/fixture bias 97.6%; calibration 0.005 + fixture 0.005 -> 82.2%; wind halved -> 77.0%; both -> 98.8% (false accepts 1.2%); verify window 10 s -> 32.4% (no help).
+  - wind x1.5 -> system declares ALIGNED in 16.2% of runs; x2 -> 0.0%, all FAULT unstable. calibration 0.030 -> 6.0% true pass; fixture 0.030 -> 16.2%.
+  - Arithmetic: seat gap 10/30/50 um over 100 mm = 0.0057/0.0172/0.0286 deg; 5 K across a 50x100 mm aluminium bracket = 0.0132 deg; offset knowledge 1 mm = 0.0048 deg at 12 m, 0.0286 deg at 2 m; reversal delta sigma 0.0043 deg (10 s per position), 0.0019 deg (60 s); TRACK allows 0.03 + 2*0.015 = 0.060 deg before correcting.
+- Open issues / next:
+  - Proposed changes to CLAUDE.md and the task list were presented to Liam and are NOT applied until he approves (see REVIEW.md, last section, and the list below).
+    1. Controller: track on the criterion (|mean|+2*sigma near tolerance and |mean| > deadband) instead of the fixed 0.03 deg drift threshold.
+    2. Reporting: add U_bias (calibration uncertainty) to the displayed criterion; dashboard shows it.
+    3. Task 5: reversal per setup (not one-time lab), plus horn-head calibration with a mirror on the aperture flange, plus caliper-measured offset mismatch in config.yaml.
+    4. Controller/dashboard: "hold" input (no motion during radar measurement), corrections time-stamped.
+    5. Task 4: run measure_stability.py on a real tripod early and replace the wind assumption.
+    6. CLAUDE.md: record the matched-offset rig rule; record that Monte Carlo is scored against truth and results must quote true pass rate and false accepts.
+    7. OPEN_QUESTIONS: add whether the datum allows a 180 deg rotation, and whether the radar integrates over seconds (mean vs instantaneous).
+  - Still unanswered from task 2: accept/reject the two changed test tolerances and the two controller changes. WSL pytest unverified (task 0 unticked).
+  - Next: task 3 (needs [LIST OF PARTS] and [DISTANCE] from Liam).

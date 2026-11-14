@@ -5,7 +5,7 @@ Items in [BRACKETS] are details to ask me for if they are still unfilled.
 Suggested effort: high by default; xhigh for tasks 1, 2 (planning) and 5.
 
 - [ ] 0. Repo setup
-- [ ] 1. Design review (red team)
+- [x] 1. Design review (red team)
 - [x] 2. Simulator and control core
 - [ ] 3. Demo rig and parts
 - [ ] 4. Camera beacon detection
