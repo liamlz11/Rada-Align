@@ -156,6 +156,35 @@ class Calibration:
     horn: HeadCalibration
 
 
+# Error sources of the simulation and the config fields that switch each one
+# off when set to zero. Used for zero-noise tests and the sensitivity analysis.
+ERROR_SOURCES: dict[str, tuple[str, ...]] = {
+    "calibration": ("calibration.residual_sigma_deg",),
+    "fixture": ("calibration.fixture_repeat_sigma_deg",),
+    "wind": ("disturbances.wind_jitter_deg", "disturbances.wind_sway_deg"),
+    "drift": ("disturbances.drift_rate_sigma_deg_per_min",),
+    "inclinometer": ("inclinometer.noise_deg", "inclinometer.bias_sigma_deg"),
+    "actuator": tuple(
+        f"actuators.{axis}.{field}" for axis in ("x", "z", "pan", "tilt") for field in ("step", "backlash")
+    ),
+    "turbulence": ("camera.turbulence_deg",),
+    "centroid": ("camera.centroid_noise_px",),
+    "rangefinder": ("rangefinder.bias_sigma_m", "rangefinder.noise_m"),
+}
+
+
+def with_only_sources(cfg: Config, keep: tuple[str, ...] | list[str] = ()) -> Config:
+    """Return a copy with every error source switched off except `keep`."""
+    unknown = [name for name in keep if name not in ERROR_SOURCES]
+    if unknown:
+        raise KeyError(f"unknown error sources {unknown}")
+    for name, paths in ERROR_SOURCES.items():
+        if name not in keep:
+            for path in paths:
+                cfg = cfg.replace_path(path, 0.0)
+    return cfg
+
+
 def _replace_path(obj, parts: list[str], value):
     name = parts[0]
     if not dataclasses.is_dataclass(obj) or name not in {f.name for f in dataclasses.fields(obj)}:
