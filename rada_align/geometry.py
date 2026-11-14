@@ -31,6 +31,17 @@ class Intrinsics:
     height_px: int
 
 
+def intrinsics_from_config(cam) -> Intrinsics:
+    """Ideal intrinsics from a CameraCfg (principal point at the image center)."""
+    return Intrinsics(
+        f_px=cam.focal_length_mm * 1e-3 / (cam.pixel_size_um * 1e-6),
+        cx_px=cam.width_px / 2.0,
+        cy_px=cam.height_px / 2.0,
+        width_px=cam.width_px,
+        height_px=cam.height_px,
+    )
+
+
 def rot_x(angle_rad: float) -> np.ndarray:
     c, s = math.cos(angle_rad), math.sin(angle_rad)
     return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]])
@@ -101,16 +112,33 @@ def net_offset_m(
     return seen[0] - camera_offset_m[0], seen[2] - camera_offset_m[1]
 
 
-def boresight_error_rad(
-    pixel_angle_rad: float,
-    delta_calib_rad: float,
-    net_offset_m: float,
-    distance_m: float,
-) -> float:
-    """Error of the other head's reference point from this head's axis.
+def mount_rotation(delta_az_rad: float, delta_el_rad: float) -> np.ndarray:
+    """Camera-to-body rotation of a camera with calibration offset delta.
 
-    eps = atan(tan(pixel_angle - delta_calib) - net_offset / d)
-    which is eps = pixel_angle - delta_calib - s / d (CLAUDE.md) without the
-    small-angle approximation.
+    delta is the pixel angle the camera reads for a target that sits exactly
+    on the head's reference axis, so the camera itself is turned by -delta.
     """
-    return math.atan(math.tan(pixel_angle_rad - delta_calib_rad) - net_offset_m / distance_m)
+    return body_rotation(-delta_az_rad, -delta_el_rad)
+
+
+def boresight_error_rad(
+    pixel_az_rad: float,
+    pixel_el_rad: float,
+    delta_az_rad: float,
+    delta_el_rad: float,
+    net_offset_xz_m: tuple[float, float],
+    distance_m: float,
+) -> tuple[float, float]:
+    """(az, el) of the other head's reference point from this head's axis.
+
+    The camera ray is rotated into the body frame with the calibrated mount
+    offset, then the parallax baseline is removed. For small angles this is
+    eps = pixel_angle - delta_calib - s / d (CLAUDE.md); written this way it
+    stays exact when the parallax angle is degrees (tabletop distance).
+    """
+    ray_cam = np.array([math.tan(pixel_az_rad), 1.0, math.tan(pixel_el_rad)])
+    ray = mount_rotation(delta_az_rad, delta_el_rad) @ ray_cam
+    return (
+        math.atan(ray[0] / ray[1] - net_offset_xz_m[0] / distance_m),
+        math.atan(ray[2] / ray[1] - net_offset_xz_m[1] / distance_m),
+    )

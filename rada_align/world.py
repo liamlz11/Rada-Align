@@ -31,7 +31,9 @@ class Scenario:
     horn_az_deg: float  # horn boresight relative to "facing the radar"
     horn_el_deg: float
     horn_roll_deg: float
-    radar_delta_deg: tuple[float, float]  # TRUE camera-to-axis misalignment (az, el)
+    # TRUE camera offset delta (az, el): the pixel angle the camera reads for a
+    # target that sits exactly on the head's reference axis.
+    radar_delta_deg: tuple[float, float]
     horn_delta_deg: tuple[float, float]
     radar_drift_deg_per_s: tuple[float, float]
     horn_drift_deg_per_s: tuple[float, float]
@@ -108,8 +110,8 @@ class World:
             "horn": (_xz(cfg.horn_head.camera_offset_m), _xz(cfg.horn_head.beacon_offset_m)),
         }
         self._delta = {
-            "radar": g.body_rotation(*np.radians(scenario.radar_delta_deg)),
-            "horn": g.body_rotation(*np.radians(scenario.horn_delta_deg)),
+            "radar": g.mount_rotation(*np.radians(scenario.radar_delta_deg)),
+            "horn": g.mount_rotation(*np.radians(scenario.horn_delta_deg)),
         }
         self._update()
 

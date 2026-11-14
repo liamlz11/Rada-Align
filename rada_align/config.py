@@ -144,7 +144,8 @@ class Config:
 class HeadCalibration:
     """What the system believes about one head (from the calibration file)."""
 
-    delta_az_deg: float  # camera boresight minus the head's reference axis
+    # Pixel angle the camera reads for a target exactly on the reference axis.
+    delta_az_deg: float
     delta_el_deg: float
     camera_offset_m: tuple[float, float]  # [right, up] in the head's body frame
     beacon_offset_m: tuple[float, float]

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import geometry as g
+from .geometry import intrinsics_from_config
 from .config import ActuatorsCfg, Calibration, CameraCfg, Config, InclinometerCfg, RangefinderCfg
 from .disturbances import Backlash, OUProcess, quantize
 from .interfaces import (
@@ -26,16 +27,6 @@ from .interfaces import (
     TiltReading,
 )
 from .world import Scenario, World, draw_scenario
-
-
-def intrinsics_from_config(cam: CameraCfg) -> g.Intrinsics:
-    return g.Intrinsics(
-        f_px=cam.focal_length_mm * 1e-3 / (cam.pixel_size_um * 1e-6),
-        cx_px=cam.width_px / 2.0,
-        cy_px=cam.height_px / 2.0,
-        width_px=cam.width_px,
-        height_px=cam.height_px,
-    )
 
 
 class SimCamera(Camera):
@@ -165,13 +156,29 @@ class Simulation:
 
 
 def build_simulation(
-    cfg: Config, seed, distance_m: float | None = None, **scenario_overrides
+    cfg: Config,
+    seed,
+    distance_m: float | None = None,
+    calibration: Calibration | None = None,
+    **scenario_overrides,
 ) -> Simulation:
-    """Build one simulated setup. `scenario_overrides` pin Scenario fields."""
+    """Build one simulated setup.
+
+    `scenario_overrides` pin Scenario fields. Pinning a true camera delta
+    also pins the calibrated delta to the same value (perfect calibration),
+    unless an explicit `calibration` is given.
+    """
     streams = [np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(9)]
-    scenario, calibration = draw_scenario(cfg, streams[0], distance_m)
+    scenario, drawn_calibration = draw_scenario(cfg, streams[0], distance_m)
     if scenario_overrides:
         scenario = dataclasses.replace(scenario, **scenario_overrides)
+    if calibration is None:
+        calibration = drawn_calibration
+        for side in ("radar", "horn"):
+            if f"{side}_delta_deg" in scenario_overrides:
+                az, el = scenario_overrides[f"{side}_delta_deg"]
+                head = dataclasses.replace(getattr(calibration, side), delta_az_deg=az, delta_el_deg=el)
+                calibration = dataclasses.replace(calibration, **{side: head})
 
     actuators = SimActuators(cfg.actuators, streams[1])
     world = World(cfg, scenario, actuators, streams[2], streams[3])

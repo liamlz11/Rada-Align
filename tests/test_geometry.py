@@ -49,7 +49,9 @@ def test_parallax_correction_recovers_true_angle(distance_m, true_error_deg):
     uncorrected = math.degrees(pixel_angle - delta)
     assert abs(uncorrected - true_error_deg) > 0.5  # parallax is large
 
-    eps = g.boresight_error_rad(pixel_angle, delta, beacon_seen - camera_offset, distance_m)
+    eps, _ = g.boresight_error_rad(
+        pixel_angle, 0.0, delta, 0.0, (beacon_seen - camera_offset, 0.0), distance_m
+    )
     assert math.degrees(eps) == pytest.approx(true_error_deg, abs=1e-9)
 
 
@@ -75,7 +77,7 @@ def test_net_offset_roll_rotates_the_baseline():
 def test_range_error_sensitivity_depends_on_net_offset(distance_m, net_m, expected_deg):
     """A 5 cm range error matters at 2 m unless camera and beacon offsets match."""
     pixel_angle = math.atan2(net_m, distance_m)  # reference point exactly on axis
-    eps = g.boresight_error_rad(pixel_angle, 0.0, net_m, distance_m + 0.05)
+    eps, _ = g.boresight_error_rad(pixel_angle, 0.0, 0.0, 0.0, (net_m, 0.0), distance_m + 0.05)
     assert abs(math.degrees(eps)) == pytest.approx(expected_deg, abs=0.0002)
 
 
