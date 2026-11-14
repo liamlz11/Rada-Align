@@ -1,0 +1,22 @@
+# rada_align configuration.
+#
+# RULE: every component parameter added here must carry a comment
+#   "ASSUMPTION - replace with datasheet/measurement"
+# until it is replaced by a real value, which is then marked with its source.
+# No assumed value may be presented as a real spec.
+#
+# Sections are intentionally empty; task 2 fills them.
+
+mode: sim  # sim | hw
+
+geometry: {}       # distance, mechanical offsets (parallax), tolerance
+camera_radar: {}   # radar reference head camera
+camera_horn: {}    # horn head camera
+beacon: {}
+inclinometer: {}
+rangefinder: {}
+actuators: {}      # x, z, pan, tilt
+disturbances: {}   # wind, tripod drift
+estimator: {}
+controller: {}     # deadband, thresholds, verify window
+montecarlo: {}

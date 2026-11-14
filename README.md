@@ -2,6 +2,36 @@
 
 Hackathon project for the DRS RADA challenge: autonomous alignment of a horn antenna to a radar in a field test, to within +/-0.05 deg in azimuth and elevation, without using radar data.
 
+## Setup
+
+One venv per OS (a Windows venv does not work from WSL and vice versa).
+
+Windows (PowerShell, from the repo root):
+
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+pytest -q
+```
+
+If activation is blocked: `Set-ExecutionPolicy -Scope Process RemoteSigned`, or skip activation and call `.venv\Scripts\python.exe -m pytest -q`.
+
+WSL (needs a Linux distro, e.g. `wsl --install -d Ubuntu`; keep the venv off /mnt/c, it is slow there):
+
+```bash
+sudo apt update && sudo apt install -y python3-venv python3-pip
+python3 -m venv ~/.venvs/rada-align
+source ~/.venvs/rada-align/bin/activate
+cd /mnt/c/Users/liaml/Desktop/Projects/Rada-Align
+python -m pip install -e ".[dev]"
+pytest -q
+```
+
+Camera and ESP32 code must run from the Windows venv (WSL2 has no USB webcam or serial access by default).
+
+## Docs
+
 - Start here: CLAUDE.md
 - Challenge and analysis: docs/CHALLENGE.md
 - Task list: docs/TASKS.md
