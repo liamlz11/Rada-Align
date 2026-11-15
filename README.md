@@ -44,6 +44,22 @@ Operator dashboard against the simulator, then open http://127.0.0.1:8000 :
 python -m rada_align.ui --distance 2
 ```
 
+Camera tools (native Windows Python, from the repo root with the venv active):
+
+```bash
+python scripts/measure_stability.py --fake --seconds 30
+```
+
+```bash
+python scripts/measure_stability.py --device 0 --seconds 30
+```
+
+```bash
+python scripts/calibrate_camera.py --images calib/chessboard --cols 9 --rows 6 --square-mm 25
+```
+
+`--fake` uses a synthetic spot (no camera is opened). `--device N` opens camera N; if the wrong camera opens, try 1, 2.
+
 ## Docs
 
 - Start here: CLAUDE.md

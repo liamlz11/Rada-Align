@@ -15,6 +15,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "websockets",  # WebSocket support for uvicorn
+    "opencv-python",
 ]
 
 [project.optional-dependencies]

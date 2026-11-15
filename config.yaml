@@ -41,6 +41,19 @@ camera:  # same model on both heads
   turbulence_deg: 0.003            # ASSUMPTION - replace with datasheet/measurement (budget row, apparent beacon wander)
   turbulence_tau_s: 0.5            # ASSUMPTION - replace with datasheet/measurement
 
+vision:  # real camera pipeline (rada_align/vision); not used by the simulator
+  device_index: 0                  # ASSUMPTION - replace with datasheet/measurement (which camera Windows lists first)
+  exposure: -6.0                   # ASSUMPTION - replace with datasheet/measurement (driver units; fixed, auto exposure off)
+  saturation_level: 250.0          # DESIGN: 8-bit pixels at or above this are treated as saturated
+  threshold_sigma: 6.0             # DESIGN: blob pixels must exceed background by this many noise sigmas
+  min_contrast: 15.0               # DESIGN: ... and by at least this many grey levels
+  min_area_px: 6                   # DESIGN: smaller blobs are noise
+  max_area_px: 4000                # DESIGN: larger blobs are not a beacon
+  min_circularity: 0.6             # DESIGN: minor/major axis of the blob's intensity ellipse
+  roi_half_px: 80                  # DESIGN: search window around the last position (0 = whole frame)
+  sigma_window: 20                 # DESIGN: samples used for the reported centroid sigma
+  frame_differencing: 0            # DESIGN: 1 = LED on minus LED off (needs LED control)
+
 calibration:
   mount_misalignment_deg: 0.5      # ASSUMPTION - replace with datasheet/measurement (true camera-to-axis delta, uniform +/-)
   residual_sigma_deg: 0.015        # ASSUMPTION - replace with datasheet/measurement (budget row; bias per setup, both heads)

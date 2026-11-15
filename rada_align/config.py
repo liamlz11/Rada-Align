@@ -44,6 +44,21 @@ class CameraCfg:
 
 
 @dataclass(frozen=True)
+class VisionCfg:
+    device_index: int
+    exposure: float
+    saturation_level: float
+    threshold_sigma: float
+    min_contrast: float
+    min_area_px: int
+    max_area_px: int
+    min_circularity: float
+    roi_half_px: int
+    sigma_window: int
+    frame_differencing: int
+
+
+@dataclass(frozen=True)
 class CalibrationCfg:
     mount_misalignment_deg: float
     residual_sigma_deg: float
@@ -127,6 +142,7 @@ class Config:
     radar_head: HeadCfg
     horn_head: HeadCfg
     camera: CameraCfg
+    vision: VisionCfg
     calibration: CalibrationCfg
     inclinometer: InclinometerCfg
     rangefinder: RangefinderCfg

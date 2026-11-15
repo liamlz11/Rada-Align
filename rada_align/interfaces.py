@@ -25,7 +25,13 @@ class ActuatorError(RuntimeError):
 
 @dataclass(frozen=True)
 class BeaconMeasurement:
-    """Centroid of the opposite beacon in one camera (undistorted pixels)."""
+    """Centroid of the opposite beacon in one camera.
+
+    Pixels are those of the NOMINAL camera of config.yaml (ideal pinhole,
+    principal point at the image centre). A real driver converts its own
+    lens (focal lengths, principal point, distortion) to that model, so the
+    controller uses one set of intrinsics for every camera.
+    """
 
     u_px: float
     v_px: float
