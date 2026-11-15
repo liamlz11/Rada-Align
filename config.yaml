@@ -73,6 +73,14 @@ actuators:  # x, z in mm; pan, tilt in deg; max_speed per second
   pan:  {step: 0.001125, backlash: 0.02, max_speed: 2.0,  min: -15.0,  max: 15.0}   # ASSUMPTION - replace with datasheet/measurement (1.8 deg / 16 / 100 worm gear)
   tilt: {step: 0.001125, backlash: 0.02, max_speed: 2.0,  min: -15.0,  max: 15.0}   # ASSUMPTION - replace with datasheet/measurement
 
+hw:  # ESP32 horn mount (rada_align/hw); not used by the simulator
+  serial_port: COM3                # ASSUMPTION - replace with datasheet/measurement (Device Manager > Ports)
+  baud: 115200                     # must match SERIAL_BAUD in firmware/include/config.h
+  timeout_s: 0.5                   # DESIGN: reply timeout per command
+  ping_interval_s: 0.3             # DESIGN: keep-alive period (firmware watchdog is 1 s)
+  # +1 or -1 per axis [x, z, pan, tilt]: flips an axis whose motor is wired the other way
+  direction: [1, 1, 1, 1]          # ASSUMPTION - replace with datasheet/measurement (set on the bench)
+
 disturbances:  # angular motion of each tripod head, per axis
   # jitter and sway RSS to the 0.015 deg "wind and tripod settling" budget row
   wind_jitter_deg: 0.0106          # ASSUMPTION - replace with datasheet/measurement (white, per sample)

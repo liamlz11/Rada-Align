@@ -16,6 +16,7 @@ dependencies = [
     "uvicorn",
     "websockets",  # WebSocket support for uvicorn
     "opencv-python",
+    "pyserial",
 ]
 
 [project.optional-dependencies]

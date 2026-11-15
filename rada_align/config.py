@@ -95,6 +95,15 @@ class ActuatorsCfg:
 
 
 @dataclass(frozen=True)
+class HwCfg:
+    serial_port: str
+    baud: int
+    timeout_s: float
+    ping_interval_s: float
+    direction: tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
 class DisturbancesCfg:
     wind_jitter_deg: float
     wind_sway_deg: float
@@ -147,6 +156,7 @@ class Config:
     inclinometer: InclinometerCfg
     rangefinder: RangefinderCfg
     actuators: ActuatorsCfg
+    hw: HwCfg
     disturbances: DisturbancesCfg
     estimator: EstimatorCfg
     controller: ControllerCfg

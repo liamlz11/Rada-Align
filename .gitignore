@@ -8,3 +8,5 @@ runs/
 .pio/
 *.egg-info/
 .env
+.pio-core/
+calib/*.sim.yaml
