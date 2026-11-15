@@ -42,6 +42,9 @@
   #banner.fault .big { color: var(--bad); }
   #banner.busy .big { color: var(--info); }
   #warning { color: var(--warn); font-weight: 600; min-height: 1.3em; margin-top: 6px; }
+  body.stale #banner { border-color: var(--line); border-style: solid; background: var(--panel); }
+  body.stale #banner .big { color: var(--dim); }
+  body.stale .value, body.stale .mm b { color: var(--dim) !important; }
 
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   button { font: inherit; font-weight: 600; padding: 10px 16px; border-radius: 6px; cursor: pointer;
@@ -183,9 +186,17 @@ function post(path, body) {
 
 function connect() {
   const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-  ws.onopen = () => { $("linkTag").textContent = "מחובר"; $("linkTag").className = "tag link on"; };
+  ws.onopen = () => { $("linkTag").textContent = "מחובר"; $("linkTag").className = "tag link on"; document.body.classList.remove("stale"); };
   ws.onmessage = (e) => update(JSON.parse(e.data));
-  ws.onclose = () => { $("linkTag").textContent = "מנותק"; $("linkTag").className = "tag link off"; setTimeout(connect, 1000); };
+  ws.onclose = () => {
+    $("linkTag").textContent = "מנותק"; $("linkTag").className = "tag link off";
+    // Never leave a frozen "aligned" on screen when the data has stopped.
+    document.body.classList.add("stale");
+    $("banner").className = "wide";
+    $("bannerText").textContent = "אין קשר לבקר";
+    $("bannerSub").textContent = "הנתונים על המסך אינם עדכניים";
+    setTimeout(connect, 1000);
+  };
 }
 
 function update(m) {
@@ -237,8 +248,8 @@ function update(m) {
 
 function banner(m) {
   const b = $("banner");
-  let kind = "", text = STATE_NAME[m.state] || m.state, sub = "";
-  if (m.state === "FAULT") { kind = "fault"; text = "תקלה – היישור נעצר"; sub = m.fault_reason || ""; }
+  let kind = "", text = STATE_NAME[m.state] || m.state, sub = "", subLtr = false;
+  if (m.state === "FAULT") { kind = "fault"; text = "תקלה – היישור נעצר"; sub = m.fault_reason || ""; subLtr = true; }
   else if (m.aligned_with_bias) { kind = "strict"; text = "מיושר"; sub = "עומד בסף גם כולל אי-ודאות הכיול"; }
   else if (m.aligned) {
     kind = "measured"; text = "מיושר לפי המדידה";
@@ -251,7 +262,13 @@ function banner(m) {
   b.className = "wide " + kind;
   $("bannerText").textContent = text;
   $("bannerSub").textContent = sub;
-  $("warning").textContent = m.warning ? "אזהרה: " + m.warning : "";
+  $("bannerSub").className = subLtr ? "sub num" : "sub";   // controller texts are English: keep them left-to-right
+  $("warning").textContent = "";
+  if (m.warning) {
+    const span = document.createElement("span");
+    span.className = "num"; span.textContent = m.warning;
+    $("warning").append("אזהרה: ", span);
+  }
 }
 
 function beforeAfter(m) {
@@ -341,8 +358,7 @@ function drawChart() {
   });
 }
 
-async function exportReport() {
-  const r = await (await fetch("/api/report")).json();
+function buildReport(r) {
   const when = new Date(r.generated_unix_s * 1000);
   const row = (a) => {
     const b = r.before ? r.before[a] : null, af = r.after ? r.after[a] : null;
@@ -350,7 +366,7 @@ async function exportReport() {
       `<td>${af ? af.sigma_deg.toFixed(4) : "–"}</td><td>${af ? af.score_deg.toFixed(4) : "–"}</td>` +
       `<td>${af ? af.score_with_bias_deg.toFixed(4) : "–"}</td></tr>`;
   };
-  const html = `<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><title>דוח יישור</title>
+  return `<!doctype html><html lang="he" dir="rtl"><meta charset="utf-8"><title>דוח יישור</title>
 <style>body{font-family:Arial,sans-serif;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px 10px;direction:ltr;text-align:right}
 .ok{color:#0a7a3f;font-weight:bold}.no{color:#b00020;font-weight:bold}</style>
 <h1>דוח יישור horn למכ"ם</h1>
@@ -363,6 +379,12 @@ ${r.fault_reason ? `<p class="no">תקלה: <span dir="ltr">${r.fault_reason}</s
 ${AXES.map(row).join("")}</table>
 <p>יישורים מחדש בזמן מעקב: ${r.corrections}</p>
 <h2>יומן אירועים</h2><pre dir="ltr">${r.events.map(([t, x]) => t.toFixed(1).padStart(7) + " s  " + x).join("\n")}</pre></html>`;
+}
+
+async function exportReport() {
+  const r = await (await fetch("/api/report")).json();
+  const html = buildReport(r);
+  const when = new Date(r.generated_unix_s * 1000);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
   a.download = `rada-align-report-${when.toISOString().replace(/[:.]/g, "-")}.html`;

@@ -87,6 +87,12 @@ def test_report_has_before_after_and_events(rig):
     texts = [text for _, text in report["events"]]
     assert "ALIGNED" in texts and any(t.startswith("move ") for t in texts)
 
+    # A pass that is no longer the current state must not be reported as passed.
+    client.post("/api/stop")
+    _steps(session, 0.2)
+    stale = client.get("/api/report").json()
+    assert stale["after"] is not None and stale["passed"] is False
+
 
 def test_background_loop_runs_in_real_time():
     session = Session(QUIET, seed=1)

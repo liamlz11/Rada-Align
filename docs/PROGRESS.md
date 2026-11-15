@@ -164,3 +164,13 @@ Template:
   - Task 8 plugs the real hardware into Session._build(); the page needs no change.
   - Liam still to confirm: P2 as report-only; two changed test tolerances and two controller changes from task 2. WSL pytest unverified (task 0). Task 3 partial (needs parts list).
   - Next without hardware: task 5 simulation part, task 4 synthetic part, task 6 driver against a mocked port.
+
+## 2026-11-15 – Task 7 follow-up: dashboard states not covered in the first check
+- Built: FAULT reason and warnings are shown left-to-right (they are English controller texts); when the WebSocket drops the banner turns grey and says the data is not current (no frozen "aligned"); the report builder is separate from the download; `/api/report` `passed` is true only while the passed alignment is still the current state (TRACK).
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `77 passed, 1 warning in 11.76s`.
+- Browser check (second server with 3x wind, scratch config): FAULT banner in red with "unstable: 2*sigma = 0.100 deg on horn_az >= 0.05 deg tolerance, pass criterion impossible" at 7.4 s; report built in the page shows "did not pass", the fault and the time-stamped moves; no console errors. NOT checked in the browser: the dropped-link banner (code path only) and the downloaded file itself.
+- The design-lint hook flags Arial in the exported report: left as is on purpose (system font, works offline, has Hebrew glyphs).
+- Closed under Liam's "trust you on all decisions" (2026-11-14), no longer open questions: P2 stays report-only; the two test tolerances changed in task 2 stay; coarse ALIGN exit at 0.03 deg and combined feed-forward trims stay.
+- Open issues / next:
+  - Still needs Liam (cannot be decided for him): install a WSL distro or waive the WSL half of task 0; the parts list and distance to finish task 3.
+  - Next: task 5 simulation part (reversal with seat errors, sets U_bias), then task 4 synthetic part, task 6 driver against a mocked port.

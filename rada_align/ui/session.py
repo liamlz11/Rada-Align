@@ -135,7 +135,10 @@ class Session:
                 "fault_reason": last.get("fault_reason"),
                 "before": last.get("before"),
                 "after": after,
-                "passed": bool(after) and all(a["score_deg"] < tol for a in after.values()),
+                # True only while the alignment that passed is still the current one.
+                "passed": bool(after)
+                and last.get("state") == "TRACK"
+                and all(a["score_deg"] < tol for a in after.values()),
                 "corrections": last.get("corrections", 0),
                 "events": list(self._events),
             }
