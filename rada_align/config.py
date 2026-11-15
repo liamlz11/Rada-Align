@@ -141,6 +141,10 @@ class Config:
         return _replace_path(self, path.split("."), value)
 
 
+class CalibrationMissing(RuntimeError):
+    """No usable calibration: the controller must not start."""
+
+
 @dataclass(frozen=True)
 class HeadCalibration:
     """What the system believes about one head (from the calibration file)."""

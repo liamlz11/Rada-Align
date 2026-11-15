@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Callable
 
-from .config import Calibration, Config
+from .config import Calibration, CalibrationMissing, Config
 from .estimator import ERROR_AXES, AxisStats, RunningMean, WindowEstimator, compute_errors_deg
 from .geometry import intrinsics_from_config
 from .interfaces import ActuatorError, Hardware
@@ -107,6 +107,11 @@ class Controller:
         calibration: Calibration,
         clock: Callable[[], float],
     ):
+        if calibration is None:
+            raise CalibrationMissing(
+                "refusing to start without a camera-to-datum calibration "
+                "(run scripts/calibrate_reversal.py, or load calib/datum.yaml)"
+            )
         self.hw = hw
         self.cfg = cfg
         self.calibration = calibration

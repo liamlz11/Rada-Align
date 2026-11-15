@@ -174,3 +174,18 @@ Template:
 - Open issues / next:
   - Still needs Liam (cannot be decided for him): install a WSL distro or waive the WSL half of task 0; the parts list and distance to finish task 3.
   - Next: task 5 simulation part (reversal with seat errors, sets U_bias), then task 4 synthetic part, task 6 driver against a mocked port.
+
+## 2026-11-15 – Task 5: Camera-to-datum calibration (simulation part done; box NOT ticked)
+- Built: rada_align/calibration.py (reversal maths with batch-mean uncertainty + seat term, `simulate_reversal` on the full 3D simulator with an independent seat error per seating and the head really rolled 180 deg, `reversal_study`, save/load of the calibration file, exact flange-mirror reflection geometry). `CalibrationMissing`; `Controller(...)` raises it when given no calibration. scripts/calibrate_reversal.py (operator steps; `--sim` only, writes calib/datum.sim.yaml), scripts/reversal_study.py, docs/CALIBRATION.md.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `87 passed, 1 warning in 64.36s` (10 new in tests/test_calibration.py; the suite is now slow because of the 60 s reversal study).
+- Key numbers (SIMULATION, assumed parameters, `python scripts/reversal_study.py 60`):
+  - 12 m, seat 0.010 deg: RMS error of delta 0.0089/0.0092 deg at 10 s per position, 0.0078/0.0074 at 60 s. Seat 0.005, 60 s: 0.0046/0.0042. Matches REVIEW arithmetic (0.0083, 0.0040).
+  - Reported u_delta: 0.0074 (seat 0.010), 0.0041 (seat 0.005). Within ~10% of the achieved error at 60 s; 20-50% optimistic at 10 s.
+  - 2 m with +/-5 cm range: az error 0.075 deg (flipped position loses the matched-offset cancellation) while the script reports 0.0074: the reported uncertainty does not include the range term. With a 2 mm tape: 0.0084 (seat 0.010), 0.0059 (seat 0.005).
+  - Flange mirror: shift per degree of tilt = 1.0000 (12 m and 2 m, matched offsets), 0.9994 (2 m unmatched). Factor 1, not 2: confirmed by exact reflection geometry only.
+  - Monte Carlo 500 runs at 12 m with the calibration the reversal reaches (same value assumed for the horn side): flat clamp 0.0078 -> true pass 72.0%, false accepts 28.0%, pass incl. U_bias 6.0%; kinematic seat 0.0044 -> 86.4%, 13.6%, 33.0%. Config as is: 35.2%, 64.8%, 0.0%.
+- Open issues / next:
+  - Not done, hence not ticked: real-camera mode of calibrate_reversal.py (needs task 4); horn-head calibration (mirror verified as geometry only, not in the simulator, not on hardware); caliper-measured offset mismatch (needs the built rig); calib/datum.yaml is not yet loaded by the dashboard session (sim draws its own calibration; task 8 wires the file in hw mode).
+  - config.yaml calibration values were NOT changed to the reversal results: they stay assumptions until a real reversal is run.
+  - Still needs Liam: WSL distro or waiver (task 0); parts list (task 3).
+  - Next: task 4 synthetic-image part, then task 6 driver against a mocked serial port.
