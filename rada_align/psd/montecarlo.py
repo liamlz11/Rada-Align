@@ -12,13 +12,14 @@ import argparse
 
 import numpy as np
 
-from .config import load_psd_config, quiet
+from .config import WEATHERS, load_psd_config, quiet
 from .controller import PsdController
 from .world import World
 
 
-def one_run(cfg, seed, distance_m, max_s=120.0) -> dict:
+def one_run(cfg, seed, distance_m, max_s=120.0, weather="clear") -> dict:
     w = World(cfg, seed, distance_m)
+    w.set_weather(weather)
     c = PsdController(w)
     c.start()
     while w.t < max_s and c.state not in ("TRACK", "FAULT"):
@@ -38,8 +39,8 @@ def one_run(cfg, seed, distance_m, max_s=120.0) -> dict:
     return out
 
 
-def run(cfg, runs, distance_m, seed0=0) -> dict:
-    res = [one_run(cfg, seed0 + i, distance_m) for i in range(runs)]
+def run(cfg, runs, distance_m, seed0=0, weather="clear") -> dict:
+    res = [one_run(cfg, seed0 + i, distance_m, weather=weather) for i in range(runs)]
     rep = np.array([r["reported_pass"] for r in res])
     tru = np.array([r["true_pass"] for r in res])
     wb = np.array([r["with_bias_pass"] for r in res])
@@ -51,7 +52,7 @@ def run(cfg, runs, distance_m, seed0=0) -> dict:
         if r["state"] == "FAULT":
             faults[r["fault"]] = faults.get(r["fault"], 0) + 1
     return {
-        "runs": runs, "distance_m": distance_m,
+        "runs": runs, "distance_m": distance_m, "weather": weather,
         "reported_pass": float(rep.mean()), "true_pass": float(tru.mean()),
         "false_accept": float((rep & ~tru).mean()),
         "with_bias_pass": float(wb.mean()),
@@ -69,12 +70,14 @@ def main(argv=None) -> int:
     p.add_argument("--distance", type=float, default=12.0)
     p.add_argument("--keep", nargs="*", default=None,
                    help="error sources to keep (default: all on); e.g. --keep wind")
+    p.add_argument("--weather", choices=WEATHERS, default="clear",
+                   help="field condition (same seeds as clear: paired comparison)")
     args = p.parse_args(argv)
     cfg = load_psd_config()
     if args.keep is not None:
         cfg = quiet(cfg, tuple(args.keep))
-    r = run(cfg, args.runs, args.distance)
-    print(f"final design Monte Carlo, {r['runs']} runs at {r['distance_m']} m (SIMULATION, assumed parameters)")
+    r = run(cfg, args.runs, args.distance, weather=args.weather)
+    print(f"final design Monte Carlo, {r['runs']} runs at {r['distance_m']} m, weather {r['weather']} (SIMULATION, assumed parameters)")
     print(f"  reported pass {r['reported_pass']:.1%} | TRUE pass {r['true_pass']:.1%} | false accepts {r['false_accept']:.1%}")
     print(f"  pass incl. U_bias {r['with_bias_pass']:.1%} | of all runs, incl. U_bias but truth fails {r['with_bias_false_accept']:.1%}")
     print(f"  U_bias (k=2) per axis (eh_az, eh_el, er_az, er_el): {r['u_bias_deg']} deg")

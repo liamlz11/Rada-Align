@@ -43,6 +43,10 @@ header .spacer{flex:1}
 .seg button{background:transparent;border:0;padding:6px 12px;cursor:pointer;color:var(--ink-2)}
 .seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink)}
 .ctl-label{color:var(--ink-3);font-size:.8rem;margin-inline-end:6px}
+.seg.wrap{flex-wrap:wrap}
+.pill.dip{border-color:var(--truth);color:var(--truth)}
+.wx{position:absolute;top:16px;left:50%;transform:translateX(-50%);pointer-events:none;background:rgba(18,28,38,.8);
+  border:1px solid var(--rule);border-radius:999px;padding:3px 14px;font-size:.8rem;color:var(--truth);display:none}
 
 main{padding:16px 22px 28px;display:grid;gap:16px;
   grid-template-columns:minmax(0,1fr) 360px}
@@ -173,6 +177,7 @@ td.num{text-align:end}
       <button data-v="overview" aria-pressed="true">מבט כללי</button><button data-v="side">מהצד</button>
       <button data-v="top">מלמעלה</button><button data-v="radar">מאחורי המכ"ם</button><button data-v="horn">יחידת ה-PSD</button>
     </div>
+    <div class="wx" id="wx"></div>
     <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div></div>
     <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.</div>
     <div class="pipeline" id="pipeline"></div>
@@ -222,6 +227,12 @@ td.num{text-align:end}
       </div>
       <h2>הפרעות</h2>
       <div class="ctlrow"><span class="ctl-label">רוח</span><input id="wind" type="range" min="0" max="3" step="0.25" value="1"><span id="windv" class="num">1×</span></div>
+      <div class="ctlrow"><span class="ctl-label">תנאי שטח</span>
+        <div class="seg wrap" id="weather" role="group" aria-label="תנאי שטח">
+          <button data-v="clear">בהיר</button><button data-v="rain_light">גשם קל</button><button data-v="rain_heavy">גשם חזק</button>
+          <button data-v="fog">ערפל</button><button data-v="shimmer">אדי חום</button><button data-v="sun">שמש ישירה</button>
+        </div></div>
+      <div class="facts" id="wxinfo" style="margin-top:-4px"></div>
       <div class="btns">
         <button class="btn warn" id="knockh">מכה בחצובת השופר</button>
         <button class="btn warn" id="knockr">מכה בחצובת המכ"ם</button>
@@ -233,6 +244,8 @@ td.num{text-align:end}
         <button class="btn" id="gap" aria-pressed="false">חלון תיקון למכ"ם</button>
         <button class="btn" id="ideal" aria-pressed="false">כיול אידיאלי</button>
       </div>
+      <div class="ctlrow"><span class="ctl-label">המכ"ם גבוה מהשופר ב-</span>
+        <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button></div></div>
       <div class="ctlrow"><span class="ctl-label">גודל PSD-A/C</span>
         <div class="seg" id="psdsize"><button data-v="9">9 מ"מ (S5991-01)</button><button data-v="20">20 מ"מ</button></div></div>
       <div class="alerts" id="alerts"></div>
@@ -272,6 +285,10 @@ const STATE_WHY = {IDLE:'לחץ "התחל יישור"', CALIB:'טוען קובץ
   ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי A ו-C', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
   TRACK:'השופר מתקן, המכ"ם בבלם ומנוטר', FAULT:''};
 const PIPE = ['CALIB','SETUP','ACQUIRE','SCAN','ALIGN','VERIFY','TRACK'];
+const WX_HE = {clear:'בהיר', rain_light:'גשם קל', rain_heavy:'גשם חזק', fog:'ערפל', shimmer:'אדי חום', sun:'שמש ישירה'};
+const WX_WHY = {rain_light:'טיפה על חלון מעמעמת PSD אחד; הדגימה שלו נפסלת עד שהטיפה יורדת',
+  rain_heavy:'יותר טיפות על החלונות, יותר דגימות נפסלות', fog:'כל שלוש הקרניים נחלשות יחד; הרעש עולה',
+  shimmer:'האוויר החם מזיז מעט את הקרן', sun:'אור רקע מעלה את הרעש של ה-PSD'};
 const fmt = (v, n=3) => v==null ? '—' : (v>=0?'+':'') + v.toFixed(n);
 let M = null, hist = [], logN = 0, exag = 20;
 
@@ -290,8 +307,9 @@ $('gap').onclick=()=>cmd('gap', !(M&&M.radar_gap));
 $('ideal').onclick=()=>{hist=[];cmd('ideal_calib', !(M&&M.ideal_calib))};
 $('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
 $('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
-for (const [id,name] of [['dist','distance'],['speed','speed'],['psdsize','psd_size']])
-  $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{if(name==='distance')hist=[];cmd(name,+b.dataset.v)});
+for (const [id,name] of [['dist','distance'],['speed','speed'],['psdsize','psd_size'],['height','height']])
+  $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{if(name==='distance'||name==='height')hist=[];cmd(name,+b.dataset.v)});
+$('weather').querySelectorAll('button').forEach(b=>b.onclick=()=>cmd('weather', b.dataset.v));
 const pipe = $('pipeline');
 PIPE.forEach(s=>{const d=document.createElement('div');d.className='st';d.dataset.s=s;
   d.innerHTML=`<b>${STATE_HE[s]}</b><span>${s}</span>`;pipe.appendChild(d)});
@@ -305,9 +323,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f1922);
 scene.fog = new THREE.Fog(0x0f1922, 9, 22);
 const cam = new THREE.PerspectiveCamera(38, 1, 0.05, 100);
-cam.position.set(2.3, 2.6, 4.6);
+cam.position.set(2.2, 2.7, 6.0);
 const orbit = new OrbitControls(cam, canvas);
-orbit.target.set(2.5, 1.0, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI*0.49;
+orbit.target.set(2.5, 1.05, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI*0.49;
 scene.add(new THREE.HemisphereLight(0x9fb7c9, 0x1a2430, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.4); sun.position.set(3,6,4); scene.add(sun);
 const grid = new THREE.GridHelper(30, 60, 0x2c4052, 0x1c2b38); scene.add(grid);
@@ -322,23 +340,24 @@ const matBoard = new THREE.MeshStandardMaterial({color:0x6e5f3d, metalness:.5, r
 // model body (x fwd, y left, z up) -> three (x, z, -y)
 const B = (x,y,z) => new THREE.Vector3(x, z, -y);
 
-function tripod(x){
+function stand(x){
+  // slim mast with short feet: the laser / PSD unit hangs below the axis in front of it
   const g = new THREE.Group();
   for (let i=0;i<3;i++){
-    const a = i*2*Math.PI/3 + 0.5;
-    const foot = new THREE.Vector3(x+Math.cos(a)*0.55, 0, Math.sin(a)*0.55);
-    const top = new THREE.Vector3(x, PED-0.12, 0);
-    const len = foot.distanceTo(top);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.024,len,8), matDark);
+    const a = i*2*Math.PI/3 + Math.PI;
+    const foot = new THREE.Vector3(Math.cos(a)*0.5, 0, Math.sin(a)*0.5), top = new THREE.Vector3(0, 0.3, 0);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.022,foot.distanceTo(top),8), matDark);
     leg.position.copy(foot.clone().add(top).multiplyScalar(0.5));
     leg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), top.clone().sub(foot).normalize());
     g.add(leg);
   }
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.1,16), matMetal);
-  head.position.set(x, PED-0.08, 0); g.add(head);
-  scene.add(g); return g;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.034,1,12), matDark); g.add(pole);
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.08,16), matMetal); g.add(head);
+  g.position.x = x; scene.add(g);
+  g.userData.setTop = (y, z) => { g.position.z = z; pole.scale.y = y; pole.position.y = y/2; head.position.y = y - 0.04 };
+  return g;
 }
-tripod(0); tripod(DS);
+const standH = stand(0), standR = stand(DS);
 
 function axisChain(){
   const base = new THREE.Group(), pan = new THREE.Group(), tilt = new THREE.Group(), roll = new THREE.Group();
@@ -386,9 +405,40 @@ const los = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.V
 const boreMat = new THREE.LineBasicMaterial({color:0xf2c14e, transparent:true, opacity:.5});
 const bore = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]), boreMat); scene.add(bore);
 
-let built = false;
+// weather: rain streaks, fog, sun glare (drawn only; the physics is in the simulator)
+const RAIN_N = 1400, rainPos = new Float32Array(RAIN_N*6), rainGeo = new THREE.BufferGeometry();
+for (let i=0;i<RAIN_N;i++){ const x=Math.random()*9-2, y=Math.random()*4, z=Math.random()*5-2.5;
+  rainPos.set([x,y,z, x+0.01,y-0.09,z], i*6) }
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({color:0x9fc4dd, transparent:true, opacity:.45}));
+rain.visible = false; rain.frustumCulled = false; scene.add(rain);
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({map:(()=>{const c=document.createElement('canvas');c.width=c.height=128;
+  const g=c.getContext('2d'), r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,'rgba(255,244,210,1)');r.addColorStop(.25,'rgba(255,220,140,.6)');r.addColorStop(1,'rgba(255,220,140,0)');
+  g.fillStyle=r;g.fillRect(0,0,128,128);return new THREE.CanvasTexture(c)})(), transparent:true, depthWrite:false, fog:false}));
+sunGlow.scale.set(2.6,2.6,1); sunGlow.position.set(DS+2.2, 3.1, -1.5); sunGlow.visible=false; scene.add(sunGlow);
+let wxNow = '', rainCount = 0, lastRainT = performance.now();
+function setWeatherScene(m){
+  if (m.weather === wxNow) return; wxNow = m.weather;
+  const fogged = m.weather==='fog', col = fogged ? 0x3b4a57 : m.weather.startsWith('rain') ? 0x0d151d : 0x0f1922;
+  scene.background.set(col); scene.fog.color.set(col);
+  scene.fog.near = fogged ? 1.5 : 9; scene.fog.far = fogged ? 9 : 22;
+  rain.visible = m.weather.startsWith('rain'); rainCount = m.weather==='rain_heavy' ? RAIN_N : 320;
+  rainGeo.setDrawRange(0, rainCount*2);
+  sunGlow.visible = m.weather==='sun'; sun.intensity = m.weather==='sun' ? 2.6 : m.weather==='clear' ? 1.4 : 0.8;
+}
+function stepRain(){
+  const now = performance.now(), dt = Math.min(0.05, (now-lastRainT)/1000); lastRainT = now;
+  if (!rain.visible || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const fall = 5*dt;
+  for (let i=0;i<rainCount;i++){ let y = rainPos[i*6+1] - fall; if (y < 0) y += 4; rainPos[i*6+1] = y; rainPos[i*6+4] = y-0.09 }
+  rainGeo.attributes.position.needsUpdate = true;
+}
+let builtSig = '', dyn = [];
+const add = (parent, mesh) => { parent.add(mesh); dyn.push(mesh); return mesh };
 function buildPose(P){
-  if (built) return; built = true;
+  const sig = JSON.stringify([P.emitter, P.lasers_m, P.radar_lever_m, P.horn_lever_m]);
+  if (sig === builtSig) return; builtSig = sig;
+  dyn.forEach(m => m.parent && m.parent.remove(m)); dyn = [];
   // Emitter side carries the lasers and the camera; the receiver carries the PSDs.
   const radarEm = P.emitter === 'radar';
   const ES = radarEm ? R.roll : H.roll, TS = radarEm ? H.roll : R.roll;
@@ -397,21 +447,32 @@ function buildPose(P){
   for (const k of ['A','B','C']){
     const [y,z] = P.lasers_m[k];
     const em = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.05,16), matMetal);
-    em.rotation.z = Math.PI/2; em.position.copy(refE).add(B(0.05, y, z)); ES.add(em); emitters[k]=em;
+    em.rotation.z = Math.PI/2; em.position.copy(refE).add(B(0.05, y, z)); add(ES, em); emitters[k]=em;
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.07),
       new THREE.MeshStandardMaterial({color:k==='B'?0x34465a:0x1a2733, emissive:0x000000, metalness:.2, roughness:.6}));
-    plate.position.copy(refT).add(B(0.03, -y, z)); TS.add(plate); psdMesh[k]=plate;
+    plate.position.copy(refT).add(B(0.03, -y, z)); add(TS, plate); psdMesh[k]=plate;
     if (k==='B'){ const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.03,24),
         new THREE.MeshStandardMaterial({color:0x8fb8d8,metalness:.1,roughness:.05,transparent:true,opacity:.6}));
-      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); TS.add(lens); }
+      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); add(TS, lens); }
   }
-  // camera next to the lasers on the emitter
+  // each unit is one rigid board hanging BELOW its axis on a strut (outside the RF aperture)
+  const zs = Object.values(P.lasers_m).map(v => v[1]), ys = Object.values(P.lasers_m).map(v => v[0]);
+  const zc = (Math.max(...zs) + Math.min(...zs))/2, hgt = Math.max(...zs) - Math.min(...zs) + 0.16;
+  const wid = Math.max(...ys) - Math.min(...ys) + 0.14;
+  for (const [side, ref, mat] of [[ES, refE, matBoard], [TS, refT, matDark]]){
+    const bd = add(side, new THREE.Mesh(new THREE.BoxGeometry(0.02, hgt, wid), mat));
+    bd.position.copy(ref).add(B(0.012, 0, zc));
+    const top = Math.max(...zs) + 0.08;   // strut from the axis down to the board
+    const st = add(side, new THREE.Mesh(new THREE.BoxGeometry(0.03, -top, 0.05), matMetal));
+    st.position.copy(ref).add(B(0.0, 0, top/2));
+  }
+  // camera in the middle of the laser board
   camBox.parent.remove(camBox); hornCam.parent.remove(hornCam);
-  camBox.position.copy(refE).add(B(0.0, 0.0, -0.22)); hornCam.position.copy(refE).add(B(0.07, 0.0, -0.22));
+  camBox.position.copy(refE).add(B(0.03, 0.0, zc + 0.02)); hornCam.position.copy(refE).add(B(0.09, 0.0, zc + 0.02));
   ES.add(camBox); ES.add(hornCam);
-  if (radarEm){ board.position.copy(refH).add(B(0.015,0,0)); }  // the horn's plate now carries the PSDs
+  board.visible = false; bracket.visible = false;
   datum.position.copy(refR);
-  panel.position.y = P.radar_lever_m[2]; radome.position.y = P.radar_lever_m[2]; bracket.position.y = P.radar_lever_m[2];
+  panel.position.y = P.radar_lever_m[2]; radome.position.y = P.radar_lever_m[2];
   emitterIsRadar = radarEm;
 }
 let emitterIsRadar = true;
@@ -423,8 +484,11 @@ function applyPose(m){
   // aligned rig looks aligned and a 0.01 deg error is visible.
   const P = m.pose; buildPose(P);
   const t = P.trans_m, kT = DS/m.distance_m, lz = P.radar_lever_m[2];
-  H.base.position.set(0, PED + t[1]*kT, -t[0]*kT);
-  R.base.position.set(DS, PED + t[3]*kT - lz, -t[2]*kT);
+  // heights at true scale (the range is compressed, the equipment is not)
+  H.base.position.set(0, PED + t[1], -t[0]*kT);
+  R.base.position.set(DS, PED + (P.height_m||0) + t[3] - lz, -t[2]*kT);
+  standH.userData.setTop(H.base.position.y - 0.08, H.base.position.z);
+  standR.userData.setTop(R.base.position.y - 0.08, R.base.position.z);
   const refApprox = R.base.position.clone().add(new THREE.Vector3(0, lz, 0));
   const L = refApprox.clone().sub(H.base.position);
   const yaw0 = Math.atan2(-L.z, L.x), pitch0 = Math.atan2(L.y, Math.hypot(L.x, L.z));
@@ -456,8 +520,8 @@ function applyPose(m){
   placeTag('tagR', ref.clone().add(new THREE.Vector3(0,.55,0)), 'מכ"ם');
   placeTag('tagD', new THREE.Vector3(DS/2, .05, .9), `${m.distance_m} מ'`);
   const eB = emitters.B.getWorldPosition(new THREE.Vector3()), pB = psdMesh.B.getWorldPosition(new THREE.Vector3());
-  placeTag('tagE', eB.add(new THREE.Vector3(0,.2,0)), '3 לייזרים 960 nm + מצלמה', true);
-  placeTag('tagP', pB.add(new THREE.Vector3(0,.2,0)), 'PSD A · B (עדשה) · C', true);
+  placeTag('tagE', eB.add(new THREE.Vector3(0,.16,0)), '3 לייזרים 960 nm + מצלמה, מתחת למכ"ם', true);
+  placeTag('tagP', pB.add(new THREE.Vector3(0,.16,0)), 'PSD A · B (עדשה) · C, מתחת לשופר', true);
 }
 function placeTag(id, v, text, small=false){
   let el = $(id); if(!el){el=document.createElement('div');el.id=id;el.className='tag3d'+(small?' small':'');$('tags').appendChild(el)}
@@ -468,11 +532,11 @@ function placeTag(id, v, text, small=false){
 }
 // camera presets, eased; any drag cancels the preset
 const VIEWS = {
-  overview:{p:[2.3,2.6,4.6], t:[2.5,1.0,0]},
-  side:    {p:[2.5,1.35,5.4], t:[2.5,1.15,0]},
+  overview:{p:[2.2,2.7,6.0], t:[2.5,1.05,0]},
+  side:    {p:[2.5,1.3,6.6], t:[2.5,1.1,0]},
   top:     {p:[2.5,6.8,0.5], t:[2.5,1.1,0]},
-  radar:   {p:[DS+1.5,1.85,0.45], t:[0,1.15,0]},
-  horn:    {p:[0.95,1.5,0.95], t:[0.1,1.15,0]},
+  radar:   {p:[DS+1.7,2.0,0.6], t:[0,0.9,0]},
+  horn:    {p:[1.25,1.15,1.15], t:[0.1,0.85,0]},
 };
 let tween = null;
 function setView(name){
@@ -496,7 +560,7 @@ function resize(){
   renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
-function loop(){ stepTween(); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
+function loop(){ stepTween(); stepRain(); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
 // ------------------------------------------------------------------ 2D canvases
@@ -523,8 +587,8 @@ function drawPsd(k, s, geom){
     g.fillStyle=gr; g.beginPath(); g.arc(X(s.x),Y(s.y),r,0,7); g.fill();
   }
   const box = $('psd'+k), pill = box.querySelector('[data-k=pill]');
-  pill.className = 'pill' + (s.valid?' valid':s.detect?' on':'');
-  pill.textContent = s.valid ? 'נעול' : s.detect ? 'חלקי' : 'אין אות';
+  pill.className = 'pill' + (s.valid?' valid':s.dip?' dip':s.detect?' on':'');
+  pill.textContent = s.valid ? 'נעול' : s.dip ? 'טיפה על החלון' : s.detect ? 'חלקי' : 'אין אות';
   const per = k==='B' ? geom.mm_per_deg_b : geom.mm_per_deg_ac;
   box.querySelector('.read').textContent = s.detect ? `${fmt(s.x,3)}, ${fmt(s.y,3)} mm` : '—';
   box.querySelector('.sub').textContent = `${size} mm · ${per.toFixed(k==='B'?3:1)} mm/° · power ${(s.power*100).toFixed(0)}%`;
@@ -663,11 +727,12 @@ const simWait = (id, dt) => { const t0 = M ? M.t : 0; return until(id, m => m.t 
 const settled = m => m.state==='TRACK' && m.aligned && !m.klt_bridge;
 async function tour(){
   const id = ++tourRun; $('tour').setAttribute('aria-pressed','true'); $('tour').textContent='עצור הדגמה';
-  const N = 7, S = i => `שלב ${i} מתוך ${N}`;
+  const N = 8, S = i => `שלב ${i} מתוך ${N}`;
   try{
     if (M && M.radar_gap) await cmd('gap', false);
+    if (M && M.weather !== 'clear') await cmd('weather', 'clear');
     hist=[]; await cmd('new_setup'); setView('overview');
-    caption('הצבה ידנית', 'שני הצדדים הוצבו ביד: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1));
+    caption('הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1));
     await simWait(id, 0.5); await sleep(2500);
     await cmd('start');
     caption('יישור אוטונומי', 'כיול, פילוס, איתור במצלמה, סריקת raster ו-PID עד אימות של 5 שניות.', S(2));
@@ -684,9 +749,11 @@ async function tour(){
     await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
     caption('חסימה קצרה של הקרן', 'מישהו עובר בקו. ה-KLT במצלמה מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
     await cmd('block',0.6); await simWait(id, 1); await until(id, settled, 20); await simWait(id, 3);
-    caption('מכה בחצובת המכ"ם', 'המכ"ם בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(6));
+    caption('גשם קל', 'בסימולציה: טיפה על חלון מעמעמת PSD אחד, הדגימה נפסלת והמעקב ממשיך.', S(6));
+    await cmd('weather','rain_light'); await simWait(id, 12); await cmd('weather','clear'); await simWait(id, 2);
+    caption('מכה בחצובת המכ"ם', 'המכ"ם בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(7));
     await cmd('push','radar'); await simWait(id, 5);
-    caption('חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(7));
+    caption('חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(8));
     await cmd('gap', true); await simWait(id, 1); await until(id, settled, 60); await cmd('gap', false);
     await simWait(id, 3);
     caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
@@ -703,7 +770,12 @@ function pipeline(m){
 }
 function controls(m){
   const set=(id,val)=>$(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.v===val)));
-  set('dist', m.distance_m); set('speed', m.speed); set('psdsize', m.psd_geom.ac_size_mm);
+  set('dist', m.distance_m); set('speed', m.speed); set('psdsize', m.psd_geom.ac_size_mm); set('height', m.pose.height_m);
+  $('weather').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===m.weather)));
+  const loss = (1-m.transmission)*100;
+  $('wxinfo').innerHTML = m.weather==='clear' ? '' : `${WX_HE[m.weather]}: ${WX_WHY[m.weather]} · אובדן עוצמה במסלול <span class="num">${loss.toFixed(loss<1?2:0)}%</span> <span style="color:var(--ink-3)">(מודל עם פרמטרים מונחים)</span>`;
+  const wx=$('wx'); wx.style.display = m.weather==='clear' ? 'none' : 'block'; wx.textContent = WX_HE[m.weather]||'';
+  setWeatherScene(m);
   $('gap').setAttribute('aria-pressed', String(m.radar_gap)); $('ideal').setAttribute('aria-pressed', String(m.ideal_calib));
   $('alerts').textContent = m.alerts.join(' · ');
 }

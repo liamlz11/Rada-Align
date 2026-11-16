@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..disturbances import OUProcess
-from .config import PsdConfig
+from .config import WEATHERS, PsdConfig
 from .model import DEG, PSDS, SERVO_NAMES, Biases, Geometry, unit_sigmas_deg
 
 
@@ -62,7 +62,8 @@ class PsdSample:
     y_mm: float
     valid: bool  # whole spot on the active area (linear reading)
     detect: bool  # any light on the active area
-    power: float  # fraction of the beam on the active area, 0..1
+    power: float  # lock-in amplitude: fraction of the launched beam reaching the active area, 0..1
+    dip: bool = False  # amplitude below the gate vs the strongest PSD (drop on this window)
 
 
 def _fraction_1d(c: float, half: float, sigma: float) -> float:
@@ -88,7 +89,64 @@ class World:
         self.ac_size_mm = cfg.sensor.ac_size_mm
         self.wind_scale = 1.0
         self.blocked_until = -1.0
+        # weather has its own generator and draws nothing when clear, so a clear
+        # run and a rainy run of the same seed share setup, wind and sensor noise
+        self.weather = "clear"
+        self.wrng = np.random.default_rng(seed + 10_007)
+        self._drops = {k: None for k in PSDS}  # (until_t, scattered fraction, bias mm)
+        self._shimmer = None
         self._setup()
+
+    # --------------------------------------------------------------- weather
+    def set_weather(self, name: str) -> None:
+        if name not in WEATHERS:
+            raise ValueError(f"weather must be one of {WEATHERS}, got {name!r}")
+        self.weather = name
+        self._drops = {k: None for k in PSDS}
+        self._shimmer = None
+        if name == "shimmer":
+            wc, L = self.cfg.weather, self.geo.d
+            w0 = self.cfg.laser.launch_radius_mm * 1e-3
+            ap = self.cfg.sensor.b_aperture_mm * 1e-3
+            wander_mm = math.sqrt(2.42 * wc.shimmer_cn2 * L ** 3 * w0 ** (-1 / 3)) * 1e3
+            aoa_rad = math.sqrt(2.91 * wc.shimmer_cn2 * L * ap ** (-1 / 3))
+            sig = {"A": wander_mm, "C": wander_mm, "B": aoa_rad * self.cfg.sensor.b_focal_mm}
+            self._shimmer = {k: [OUProcess(sig[k], wc.shimmer_tau_s, self.wrng) for _ in range(2)] for k in PSDS}
+            self.shimmer_sigma_mm = sig
+
+    @property
+    def rain_mm_h(self) -> float:
+        wc = self.cfg.weather
+        return {"rain_light": wc.rain_light_mm_h, "rain_heavy": wc.rain_heavy_mm_h}.get(self.weather, 0.0)
+
+    @property
+    def transmission(self) -> float:
+        """Atmospheric power transmission of the path (same for the three beams)."""
+        wc, L = self.cfg.weather, self.geo.d
+        if self.rain_mm_h > 0:
+            db = wc.rain_ext_db_km * self.rain_mm_h ** wc.rain_ext_exp * L / 1000.0
+            return 10 ** (-db / 10)
+        if self.weather == "fog":
+            return math.exp(-3.91 / wc.fog_visibility_m * L)
+        return 1.0
+
+    def _step_weather(self, dt: float) -> None:
+        if self.weather == "clear":
+            return
+        wc = self.cfg.weather
+        rate = wc.rain_hit_rate_per_mm_h * self.rain_mm_h
+        if rate > 0:
+            for k in PSDS:
+                d = self._drops[k]
+                if d is not None and self.t >= d[0]:
+                    self._drops[k] = d = None
+                if d is None and self.wrng.random() < rate * dt:
+                    s = self.wrng.uniform(wc.rain_scatter_min, wc.rain_scatter_max)
+                    per = wc.rain_bias_b_mm if k == "B" else wc.rain_bias_ac_mm
+                    self._drops[k] = (self.t + self.wrng.exponential(wc.rain_drop_stay_s), s,
+                                      self.wrng.normal(0, per * s, 2))
+        if self._shimmer is not None:
+            self._shimmer_now = {k: np.array([p.step(dt) for p in ps]) for k, ps in self._shimmer.items()}
 
     # --------------------------------------------------------------- setup
     def _setup(self) -> None:
@@ -147,6 +205,7 @@ class World:
         self._wind = np.array([(j.step(dt) + sw.step(dt)) * ws for j, sw in zip(self.jitter, self.sway)])
         self._wind[[2, 5]] *= 0.2  # roll is much stiffer than pan/tilt (ASSUMPTION)
         self.drift += self.drift_rate * dt
+        self._step_weather(dt)
 
     # --------------------------------------------------------------- sensors
     @property
@@ -158,7 +217,10 @@ class World:
         noise = self.cfg.sensor.noise_um * 1e-3
         r99 = self.geo.spot_r99_mm
         sig = r99 / 3.035  # 1/e^2 radius / 2 = Gaussian sigma (r99 = 1.517 w, sigma = w/2)
-        out = {}
+        T = self.transmission
+        sun = self.cfg.weather.sun_noise_factor if self.weather == "sun" else 1.0
+        shim = getattr(self, "_shimmer_now", None) if self._shimmer is not None else None
+        raw = {}
         for k in PSDS:
             if k == "B":
                 lens = beams["B_lens"]
@@ -178,14 +240,33 @@ class World:
                 valid = bool(np.all(np.abs(pos) + r99 <= half))
             if self.blocked:
                 power, valid = 0.0, False
+            drop = self._drops[k]
+            atm = T  # share of the launched power that survives the path and the window
+            if shim is not None:
+                pos = pos + shim[k]
+            if drop is not None:  # a drop on this window: scatters light, shifts the centroid
+                atm *= 1.0 - drop[1]
+                pos = pos + drop[2]
+            power *= atm
             detect = power > 0.02
             if detect and not valid and k != "B":
                 # part of the spot is off the active area: the PSD reports the
                 # centroid of the part it sees, pulled towards the inside.
                 lim = max(half - 0.5 * r99, 0.1)
                 pos = np.clip(pos, -lim, lim)
-            meas = pos + self.rng.normal(0, noise, 2) if noise > 0 else pos.copy()
-            out[k] = PsdSample(float(meas[0]), float(meas[1]), bool(valid and detect), bool(detect), float(power))
+            # position noise of a PSD goes as 1 / photocurrent; the sensor noise
+            # draw stays on the main generator and is only scaled here
+            scale = sun / max(atm, 0.05)
+            meas = pos + self.rng.normal(0, noise, 2) * scale if noise > 0 else pos.copy()
+            raw[k] = (meas, bool(valid and detect), bool(detect), float(power))
+        top = max(v[3] for v in raw.values())
+        gate = self.cfg.sensor.amplitude_gate
+        out = {}
+        for k, (meas, valid, detect, power) in raw.items():
+            # amplitude gate against the strongest PSD: only meaningful for a spot
+            # that is whole on its PSD (a partial spot is already not valid)
+            dip = bool(valid and power < gate * top)
+            out[k] = PsdSample(float(meas[0]), float(meas[1]), valid and not dip, detect, power, dip)
         return out
 
     def read_inclinometers(self) -> dict:

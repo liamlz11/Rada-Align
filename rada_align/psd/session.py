@@ -44,6 +44,7 @@ class PsdSession:
         self.wind_scale = 1.0
         self.ideal_calib = False
         self.height_m: float | None = None  # None = scenario default from config
+        self.weather = "clear"
         self._lock = threading.Lock()
         self._messages: deque[dict] = deque(maxlen=100)
         self._seq = 0
@@ -58,6 +59,7 @@ class PsdSession:
         self.world = World(cfg, self.seed, self.distance_m, height_m=self.height_m)
         self.world.ac_size_mm = self.ac_size_mm
         self.world.wind_scale = self.wind_scale
+        self.world.set_weather(self.weather)
         self.ctrl = PsdController(self.world)
         self.dt = self.ctrl.dt
         self._events_sent = 0
@@ -80,6 +82,10 @@ class PsdSession:
             elif name == "height":
                 self.height_m = float(np.clip(float(value), -2.0, 2.0))
                 self._build()
+            elif name == "weather":
+                w.set_weather(str(value))
+                self.weather = str(value)
+                c._log(f"field condition: {value} (path transmission {w.transmission:.1%})")
             elif name == "psd_size":
                 self.ac_size_mm = float(value)
                 w.ac_size_mm = self.ac_size_mm
@@ -192,11 +198,15 @@ class PsdSession:
             "blocked": w.blocked,
             "wind_scale": self.wind_scale,
             "ideal_calib": self.ideal_calib,
+            "weather": w.weather,
+            "transmission": _f(w.transmission, 4),
+            "rain_mm_h": w.rain_mm_h,
             "alerts": list(c.alerts),
             "corrections": c.corrections,
             "psd": {
                 k: {"x": _f(psd[k].x_mm, 4), "y": _f(psd[k].y_mm, 4), "valid": psd[k].valid,
-                    "detect": psd[k].detect, "power": _f(psd[k].power, 3)} for k in PSDS
+                    "detect": psd[k].detect, "power": _f(psd[k].power, 3), "dip": psd[k].dip,
+                    "drop": w._drops[k] is not None} for k in PSDS
             },
             "psd_geom": {
                 "ac_size_mm": w.ac_size_mm, "b_size_mm": w.cfg.sensor.b_size_mm,

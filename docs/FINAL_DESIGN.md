@@ -129,6 +129,43 @@ Monte Carlo against truth after the swap, 200 runs each
 
 ---
 
+## 0.2 Units below the axes, height difference, field conditions (Liam, 2026-11-16)
+
+Liam: the laser board and the PSD unit hang BELOW the radar and the horn, not on them; the demo shows a radar that stands higher than the horn; the demo shows that light rain and other field conditions do not stop the alignment.
+
+**Units below.** `psd.geometry.laser_*_m` now has negative "up": A and B 0.40 m, C 0.58 m below the radar reference; the PSDs sit at the mirror positions below the horn centre (same drop on both sides, so the matched pattern holds). Both units stay rigid parts of their side (the radar unit is still clamped to the radar datum, on a longer bracket; its calibration sigma is unchanged and is an ASSUMPTION).
+
+- Consequence [sim]: a relative roll error now reaches the azimuth readings through the 0.4-0.58 m lever. With roll taken from PSD A/C, U_bias (k=2) at 12 m rose from 0.0237/0.0369 deg (horn/radar Az) to 0.0405/0.0494 deg, and at 2 m to 0.104/0.108 deg.
+- Decision (design change, flagged): the relative roll comes from the two inclinometers (`control.roll_from_inclinometers: true`); PSD A/B/C solve Az/El only and PSD-C is redundancy and a cross-check. U_bias includes the inclinometer bias through the lever. Result [sim]: U_bias back to 0.0237/0.0369 deg at 12 m, 0.033/0.043 deg at 2 m.
+
+**Height difference (R3).** `psd.geometry.radar_height_m: 0.60` (field) and `radar_height_short_m: 0.10` (tabletop) are demo scenario values. Both sides are aimed by hand along the sloped line of sight (2.9 deg at 12 m). The model linearises at that aligned attitude. The controller does not read the scenario value: it takes the height from the two inclinometer tilts and the range. R3 is reported as (range - levers) * tan(mean of the two tilts, each corrected by its PSD elevation error); example run: 636 mm reported, 634 mm true. The old R3 line had the wrong sign for a radar above the horn.
+
+**Field conditions** (`psd.weather`, every value an ASSUMPTION fixed before the runs; formulas quoted from memory, to be checked against the sources):
+
+| Condition | Model | Effect at 12 m |
+|---|---|---|
+| Rain 2.5 / 25 mm/h | path extinction 1.076 R^0.67 dB/km; drops on a hooded window: 0.01 events/s per mm/h per window, 1 s mean stay, 2-50 % of the beam scattered, centroid shift 1.0 mm (A/C) or 0.6 mm (B) per unit scattered fraction | path loss 0.5 % / 2.5 %; a wet window dims one PSD and biases it |
+| Fog, visibility 200 m | extinction 3.91 / V per metre | all three beams lose 21 % together; PSD noise up by 1/0.79 |
+| Heat shimmer, Cn2 = 1e-13 | beam wander and angle of arrival, 10 ms correlation | 0.05 mm on A/C, 0.0002 deg on B |
+| Direct sun | PSD noise x2 after filter and lock-in | noise only |
+
+- Design additions: amplitude gate (`sensor.amplitude_gate: 0.95`): a sample is used only if its lock-in amplitude is at least 95 % of the strongest of the three PSDs, so a drop on one window drops that sample while fog (all three alike) does not. A dimmed PSD is not treated as "spot leaving the PSD" (no false radar alert, no re-centre). VERIFY also needs `control.min_clean_fraction: 0.5` of samples free of a dip.
+- The weather has its own random generator, so clear and rainy runs of the same seed share the setup and the sensor noise (paired comparison).
+- Not modelled: rain or fog on the camera (acquisition and KLT), water film on a window, wind-driven spray, wet-ground settling. The drop model is the weakest part: the hit rate and the centroid shift are estimates, to be measured with a wet window on the bench.
+
+Monte Carlo, 200 runs at 12 m, same seeds, all error sources on [sim]:
+
+| Condition | Reported pass | TRUE pass | False accepts | Median time to TRACK | Faults |
+|---|---|---|---|---|---|
+| clear | 100.0 % | 44.0 % | 56.0 % | 11.2 s | 0 |
+| light rain | 99.5 % | 45.5 % | 54.0 % | 11.3 s | 1 |
+| heavy rain | 93.0 % | 40.0 % | 53.0 % | 16.3 s | 14 |
+| fog | 100.0 % | 45.0 % | 55.0 % | 11.3 s | 0 |
+| heat shimmer | 99.5 % | 47.5 % | 52.0 % | 11.3 s | 1 |
+| direct sun | 100.0 % | 44.5 % | 55.5 % | 11.3 s | 0 |
+
+Pass including U_bias is 0.0 % in every row (unchanged finding: the assumed radar-side calibration is the limit, section 0.1). Reading: light rain, fog, shimmer and sun do not change the result in this simulation; heavy rain costs 7 points of reported pass and 5 s, from VERIFY windows with too many dips and ALIGN runs that do not converge. Clear weather at 2 / 12 / 15 m after the two geometry changes: reported 98.0 / 100.0 / 88.0 %, TRUE 24.0 / 44.0 / 44.0 %, false accepts 74.0 / 56.0 / 44.0 %.
+
 ## 1. The design, D1-D12
 
 | # | Decision | Our note |

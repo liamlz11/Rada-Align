@@ -40,6 +40,7 @@ class PsdController:
         self.est: np.ndarray | None = None
         self.use: tuple[str, ...] = ()
         self.before: dict | None = None
+        self._on_psd = False
         self.before_camera: dict | None = None  # emitter error from the camera, before any correction (R5)
         self.after: dict | None = None
         self.window: dict | None = None
@@ -243,7 +244,8 @@ class PsdController:
     # ------------------------------------------------------------ ALIGN
     def _measure(self, psd, need: tuple[str, ...]):
         ok = all(psd[k].valid for k in need)
-        self._buf.append((readings_vector(psd), ok, self.w.true_errors(), psd["C"].valid))
+        on_psd = all(psd[k].valid or psd[k].dip for k in need)  # a dimmed PSD still has its spot
+        self._buf.append((readings_vector(psd), ok, self.w.true_errors(), psd["C"].valid, on_psd))
 
     def _s_align(self, psd) -> None:
         if self.sub == "settle":
@@ -269,6 +271,9 @@ class PsdController:
         if len(self._buf) * self.dt < self.c.align_window_s:
             return
         good = [b for b in self._buf if b[1]]
+        if len(good) < 0.5 * len(self._buf) and sum(b[4] for b in self._buf) >= 0.5 * len(self._buf):
+            self._buf = []  # amplitude dips (drops on a window): measure again
+            return
         if len(good) < 0.5 * len(self._buf):
             if not psd["A"].detect and not psd["C"].detect:
                 self._log("beam lost during ALIGN")
@@ -338,20 +343,22 @@ class PsdController:
         use = self.use or ("A", "B")
         ok = all(psd[k].valid for k in use)
         e = self.est_model.estimate(readings_vector(psd), use, self.w.read_inclinometers()) if ok else None
+        self._on_psd = ok or all(psd[k].valid or psd[k].dip for k in use)
         return ok, e
 
     def _s_verify(self, psd) -> None:
         ok, e = self._sample_errors(psd)
-        self._buf.append((ok, e, self.w.true_errors()))
+        self._buf.append((ok, e, self.w.true_errors(), self._on_psd))
         if len(self._buf) * self.dt < self.c.verify_window_s:
             return
         est = np.array([b[1] for b in self._buf if b[0]])
-        frac = len(est) / len(self._buf)
+        clean = len(est) / len(self._buf)
+        frac = sum(b[3] for b in self._buf) / len(self._buf)  # spot whole on the PSDs
         true = np.array([b[2] for b in self._buf])
         ts = window_score(true)
         if len(est) > 1:
             rs = window_score(est, self.est_model.u_bias_deg(self.use or ("A", "B")))
-            passed = rs["pass"] and frac >= self.c.min_valid_fraction
+            passed = rs["pass"] and frac >= self.c.min_valid_fraction and clean >= self.c.min_clean_fraction
         else:
             rs, passed = None, False
         self.window = {"kind": "verify", "valid_fraction": frac, "reported": rs, "truth": ts, "pass": passed}
@@ -366,7 +373,8 @@ class PsdController:
             self._goto("TRACK", "radar braked, horn PID")
             return
         self._verify_attempts += 1
-        why = "too few valid samples" if frac < self.c.min_valid_fraction else "criterion not met"
+        why = ("too few valid samples" if frac < self.c.min_valid_fraction
+               else "too many amplitude dips" if clean < self.c.min_clean_fraction else "criterion not met")
         self._log(f"VERIFY failed ({why}, valid {frac:.0%})")
         if self._verify_attempts >= self.c.max_verify_attempts:
             self._fault(f"VERIFY failed {self._verify_attempts} times ({why}): conditions too unstable")
@@ -401,7 +409,7 @@ class PsdController:
         ok, e = self._sample_errors(psd)
         n_max = int(self.c.track_window_s / self.dt)
         self._track_true.append(self.w.true_errors())
-        self._track_ok.append(ok)
+        self._track_ok.append(self._on_psd)  # "spot leaving" is about geometry, not a dimmed PSD
         while len(self._track_ok) > n_max:
             self._track_ok.popleft()
         if ok:

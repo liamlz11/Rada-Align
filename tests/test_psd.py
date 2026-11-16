@@ -174,3 +174,50 @@ def test_u_bias_matches_sampled_calibration_residuals():
     spread = 2 * np.std(errs, axis=0)
     assert np.allclose(spread, u, rtol=0.15)
     assert np.all(PsdEstimator(Geometry(QUIET, 12.0)).u_bias_deg(use) == 0)
+
+
+def _aligned_world(weather, seed=0):
+    w = World(QUIET, seed, 12.0, height_m=0.0)
+    w.base[:] = 0
+    w.trans[:] = 0
+    w.set_weather(weather)
+    return w
+
+
+def test_fog_dims_all_three_psds_alike_and_trips_no_gate():
+    w = _aligned_world("fog")
+    s = w.read_psds()
+    assert w.transmission == pytest.approx(math.exp(-3.91 / CFG.weather.fog_visibility_m * 12.0))
+    assert all(v.valid and not v.dip for v in s.values())
+    assert s["A"].power == pytest.approx(w.transmission)
+
+
+def test_drop_on_one_window_is_gated_out_and_the_others_stay_valid():
+    w = _aligned_world("rain_heavy")
+    w._drops["B"] = (1e9, 0.3, np.array([0.2, -0.1]))  # 30 % scattered, biased centroid
+    s = w.read_psds()
+    assert s["B"].dip and not s["B"].valid and s["B"].detect
+    assert s["A"].valid and s["C"].valid
+    w._drops["B"] = (1e9, 0.03, np.array([0.01, 0.0]))  # below the gate: passes, small bias
+    assert w.read_psds()["B"].valid
+
+
+def test_weather_does_not_touch_the_main_random_stream():
+    """Same seed, clear vs rain: identical setup and sensor noise draws."""
+    a, b = World(CFG, 5, 12.0), World(CFG, 5, 12.0)
+    b.set_weather("rain_heavy")
+    for _ in range(300):
+        a.step(0.01)
+        b.step(0.01)
+    assert np.allclose(a.attitude_deg(), b.attitude_deg())
+    assert a.rng.random() == b.rng.random()
+
+
+def test_light_rain_run_holds_track_without_alerts_from_dips():
+    w = World(QUIET.replace_path("weather.rain_hit_rate_per_mm_h", CFG.weather.rain_hit_rate_per_mm_h), 1, 12.0)
+    w.set_weather("rain_light")
+    c = PsdController(w)
+    c.start()
+    assert run(w, c, 60, "TRACK") == "TRACK"
+    run(w, c, 60)
+    assert c.state == "TRACK" and not any(a.startswith("radar moved") for a in c.alerts)

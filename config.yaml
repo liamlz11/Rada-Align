@@ -145,6 +145,7 @@ psd:
     b_size_mm: 9.0                     # [datasheet] Hamamatsu S5991-01 photosensitive area 9 x 9 mm
     b_focal_mm: 50.0                   # ASSUMPTION - replace with datasheet/measurement (PSD-B lens)
     b_aperture_mm: 25.0                # ASSUMPTION - replace with datasheet/measurement (PSD-B lens clear aperture)
+    amplitude_gate: 0.95               # DESIGN (2026-11-16): a sample is used only if its lock-in amplitude is >= this fraction of the strongest of the three PSDs (a drop on one window dims that PSD; fog dims all three alike)
     noise_um: 1.5                      # [datasheet] S5991-01 position resolution at 1 uA, 1 kHz (conservative here)
     rate_hz: 100.0                     # ASSUMPTION - replace with datasheet/measurement (lock-in output rate used by the simulator)
   laser:
@@ -169,6 +170,23 @@ psd:
     sway_deg: 0.0106                   # ASSUMPTION - replace with datasheet/measurement (per head, per axis, slow part)
     sway_tau_s: 2.0                    # ASSUMPTION - replace with datasheet/measurement
     drift_deg_per_min: 0.01            # ASSUMPTION - replace with datasheet/measurement (slow settling, 1 sigma rate)
+  weather:
+    # Field conditions of the simulator. Every value is fixed from the stated
+    # formula BEFORE any run; none is tuned to a result.
+    rain_light_mm_h: 2.5               # ASSUMPTION - replace with datasheet/measurement (light rain rate)
+    rain_heavy_mm_h: 25.0              # ASSUMPTION - replace with datasheet/measurement (heavy rain rate)
+    rain_ext_db_km: 1.076              # ASSUMPTION - replace with datasheet/measurement (optical rain extinction = 1.076 * R^0.67 dB/km, Carbonneau-type FSO model, from memory)
+    rain_ext_exp: 0.67                 # ASSUMPTION - replace with datasheet/measurement (same model)
+    rain_hit_rate_per_mm_h: 0.01       # ASSUMPTION - replace with datasheet/measurement (drops landing in the beam footprint of ONE hooded window, per second per mm/h. [arith] 1 mm drops: 5.2e-4 drops/mm2/s per mm/h on a horizontal surface x 80 mm2 footprint = 0.042; x 0.25 for a vertical hooded window in wind-driven rain)
+    rain_drop_stay_s: 1.0              # ASSUMPTION - replace with datasheet/measurement (mean time until the drop runs off, exponential)
+    rain_scatter_min: 0.02             # ASSUMPTION - replace with datasheet/measurement (fraction of the beam a drop scatters, uniform min..max)
+    rain_scatter_max: 0.5              # ASSUMPTION - replace with datasheet/measurement
+    rain_bias_ac_mm: 1.0               # ASSUMPTION - replace with datasheet/measurement (centroid shift on PSD-A/C per unit scattered fraction, 1 sigma)
+    rain_bias_b_mm: 0.6                # ASSUMPTION - replace with datasheet/measurement (same on PSD-B: scattered light spread over the 9 mm PSD, about 2 mm rms x 0.3 landing on it)
+    fog_visibility_m: 200.0            # ASSUMPTION - replace with datasheet/measurement (fog; extinction = 3.91 / V per metre, Kim model with q = 0 below 500 m, from memory)
+    shimmer_cn2: 1.0e-13               # ASSUMPTION - replace with datasheet/measurement (strong near-ground turbulence, m^-2/3; beam wander var = 2.42 Cn2 L^3 W0^-1/3, angle of arrival var = 2.91 Cn2 L D^-1/3, Andrews & Phillips, from memory)
+    shimmer_tau_s: 0.01                # ASSUMPTION - replace with datasheet/measurement (correlation time)
+    sun_noise_factor: 2.0              # ASSUMPTION - replace with datasheet/measurement (PSD noise with direct sun behind the emitter, after the band-pass filter and lock-in)
   inclinometer:
     noise_deg: 0.002                   # ASSUMPTION - replace with datasheet/measurement
     bias_sigma_deg: 0.005              # ASSUMPTION - replace with datasheet/measurement
@@ -191,6 +209,7 @@ psd:
     radar_alert_deg: 0.03              # DESIGN (FINAL_DESIGN C1)
     max_iterations: 20                 # DESIGN
     max_verify_attempts: 4             # DESIGN
+    min_clean_fraction: 0.5            # DESIGN (2026-11-16): VERIFY also needs this share of samples free of an amplitude dip
     min_valid_fraction: 0.9            # DESIGN: VERIFY fails if fewer samples have the spot fully on the PSD
     scan_sigmas: 3.0                   # DESIGN: raster half-window = scan_sigmas * camera.acquire_sigma_deg
     beam_lost_s: 1.0                   # DESIGN: longer beam loss in TRACK -> SCAN (shorter: KLT bridge)

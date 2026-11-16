@@ -32,6 +32,7 @@ class SensorCfg:
     b_size_mm: float
     b_focal_mm: float
     b_aperture_mm: float
+    amplitude_gate: float
     noise_um: float
     rate_hz: float
 
@@ -68,6 +69,27 @@ class WindCfg:
 
 
 @dataclass(frozen=True)
+class WeatherCfg:
+    rain_light_mm_h: float
+    rain_heavy_mm_h: float
+    rain_ext_db_km: float
+    rain_ext_exp: float
+    rain_hit_rate_per_mm_h: float
+    rain_drop_stay_s: float
+    rain_scatter_min: float
+    rain_scatter_max: float
+    rain_bias_ac_mm: float
+    rain_bias_b_mm: float
+    fog_visibility_m: float
+    shimmer_cn2: float
+    shimmer_tau_s: float
+    sun_noise_factor: float
+
+
+WEATHERS = ("clear", "rain_light", "rain_heavy", "fog", "shimmer", "sun")
+
+
+@dataclass(frozen=True)
 class InclinometerCfg:
     noise_deg: float
     bias_sigma_deg: float
@@ -99,6 +121,7 @@ class ControlCfg:
     radar_alert_deg: float
     max_iterations: int
     max_verify_attempts: int
+    min_clean_fraction: float
     min_valid_fraction: float
     scan_sigmas: float
     beam_lost_s: float
@@ -112,6 +135,7 @@ class PsdConfig:
     calib: CalibCfg
     servos: ServosCfg
     wind: WindCfg
+    weather: WeatherCfg
     inclinometer: InclinometerCfg
     camera: CameraCfg
     rangefinder: RangefinderCfg
