@@ -32,7 +32,7 @@ The rule "NEVER use radar data" is unchanged.
 | --- | --- | --- |
 | PSD type | Continuous 2D PSD (S5991-01 class), not a quadrant detector. Field size for A and C still per 7.1 (≥ 20 mm or diffuser) | C6, Q26 |
 | Laser board | Adjusted by hand (micrometer) in CALIB only, then locked. The whiteboard's "3 stepper motors" are not a separate laser drive | C5, Q29 |
-| Raster scan | With the horn Pan/Tilt servos; no separate scanner. BOM item 7 = 0. **Superseded by 0.1: with the lasers on the radar the raster uses the radar Pan/Tilt** | D12, Q24 |
+| Raster scan | With the horn Pan/Tilt servos; no separate scanner. BOM item 7 = 0. **Superseded by 0.1: with the lasers on the radar the raster uses the radar Pan/Tilt (approved by Liam, 2026-11-16)** | D12, Q24 |
 | Radar motion | Before the test and in allowed gaps only. During measurement it is braked and monitored, with an alert above 0.03°. The gap signal is still Q21 | C1, Q22 |
 | Servos | Not chosen. We propose 2-3 models from datasheets in task 3. Code is written against the mock (task 17) | Q25 (in progress) |
 | Laser | Per recommendation: 960 nm, Class 1, focusable 10 mm beam, attenuated to about 0.1 mW. Models and the Class to be verified from an official source in task 3 | C7, Q27 (open: does the camera see 960 nm?) |
@@ -77,8 +77,8 @@ the horn.
 - **Raster scan now uses the RADAR Pan/Tilt, not the horn's.** Turning the horn
   barely moves the spot on its own PSDs (only the 0.1 m lever), so only the
   emitter side can sweep the beam.
-  - This replaces the team decision "raster with the horn servos" (Q24); see the
-    question in the stage report.
+  - This replaces the team decision "raster with the horn servos" (Q24). Approved
+    by Liam, 2026-11-16.
   - Scanning happens before the test, while the radar may still move (C1).
 - **ACQUIRE:** the camera on the radar finds the PSD unit on the horn (template
   matching), and the radar coarse-points.
