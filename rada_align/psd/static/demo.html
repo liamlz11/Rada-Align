@@ -10,13 +10,12 @@
   "aligned", infrared magenta for the (invisible in reality) 960 nm beams, signal red
   for out of tolerance, ice cyan for truth. One bold element: the 3D range scene.
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;700&display=swap" rel="stylesheet">
+<!-- bundled in static/vendor so the demo runs without network (vendor/README.md) -->
+<link href="/vendor/fonts/fonts.css" rel="stylesheet">
 <script type="importmap">
 { "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three": "/vendor/three/three.module.js",
+  "three/addons/": "/vendor/three/addons/"
 } }
 </script>
 <style>

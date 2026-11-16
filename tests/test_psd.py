@@ -240,3 +240,15 @@ def test_short_psd_a_edge_clips_are_summarised_not_logged_one_by_one():
              and float(t.split()[3]) < CFG.control.short_loss_s]
     assert short == []
     assert any(t.startswith("spot left the PSD-A edge") for t in new)
+
+
+def test_demo_page_works_offline_with_bundled_files():
+    import re
+    session = PsdSession(QUIET, seed=1, distance_m=2.0)
+    with TestClient(create_app(session, autostart=False)) as client:
+        html = client.get("/").text
+        assert re.findall(r"""(?:src|href|["'])\s*=?\s*["']?https?://""", html) == []
+        for path in ("/vendor/three/three.module.js", "/vendor/three/addons/controls/OrbitControls.js",
+                     "/vendor/fonts/fonts.css", "/vendor/fonts/ibm-plex-sans-hebrew-hebrew-400-normal.woff2"):
+            r = client.get(path)
+            assert r.status_code == 200 and len(r.content) > 1000, path

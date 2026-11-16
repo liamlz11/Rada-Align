@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .session import PsdSession
@@ -29,6 +30,8 @@ def create_app(session: PsdSession, autostart: bool = True) -> FastAPI:
         session.shutdown()
 
     app = FastAPI(title="RADA Align - final design demo", lifespan=lifespan)
+    # three.js and the font, bundled so the page works offline (static/vendor/README.md)
+    app.mount("/vendor", StaticFiles(directory=STATIC / "vendor"), name="vendor")
 
     @app.get("/")
     def index():
