@@ -38,15 +38,16 @@ def test_readings_zero_when_aligned_and_rank_5(d):
     assert np.abs(lin["Jm"].T @ X - lin["Je"].T).max() < 1e-6  # all 5 errors observable
 
 
-def test_psd_b_ignores_translation_and_a_reads_horn_error():
+def test_lasers_on_radar_a_reads_radar_error_b_ignores_translation():
     geo = Geometry(CFG, 12.0)
+    assert geo.emitter == "radar"
     shifted = geo.beams(np.zeros(6), np.array([0.005, 0.0, 0.0, 0.0]))
-    assert np.abs(shifted["B"]).max() < 1e-9
+    assert np.abs(shifted["B"]).max() < 1e-9  # a sideways shift does not change the beam angle
     assert abs(shifted["A"][0]) > 4.0  # 5 mm sideways shows on A
-    e = geo.errors(np.zeros(6), np.array([0.005, 0.0, 0.0, 0.0]))
     G = geo.jacobians()["G"]
-    assert G[0, 0] == pytest.approx(geo.d * 1e3 * DEG - 0.2e3 * DEG, rel=1e-3)  # 11.8 m path
-    assert abs(e[0]) == pytest.approx(math.degrees(0.005 / (geo.d - 0.2)), rel=1e-2)
+    assert G[0, 2] == pytest.approx((geo.d - 0.2) * 1e3 * DEG, rel=1e-3)  # A: radar error, 11.8 m path
+    assert abs(G[0, 0]) < 1e-6  # A does not see the horn error
+    assert G[2, 0] == pytest.approx(-G[2, 2])  # B = f (horn - radar)
 
 
 def test_spot_off_the_psd_is_invalid_and_partial_is_detected_only():
@@ -55,17 +56,17 @@ def test_spot_off_the_psd_is_invalid_and_partial_is_detected_only():
     w.trans[:] = 0
     half = w.ac_size_mm / 2
     mm_per_deg = (w.geo.d - 0.2) * 1e3 * DEG
-    w.base[0] = (half - 0.5 * w.geo.spot_r99_mm) / mm_per_deg  # spot straddles the edge
+    w.base[3] = (half - 0.5 * w.geo.spot_r99_mm) / mm_per_deg  # radar pan: spot straddles the edge
     s = w.read_psds()["A"]
     assert s.detect and not s.valid
-    w.base[0] = 1.0  # far off
+    w.base[3] = 1.0  # far off
     s = w.read_psds()["A"]
     assert not s.detect and not s.valid
 
 
-@pytest.mark.parametrize("d,seed", [(2.0, 0), (12.0, 1), (15.0, 2)])
-def test_zero_noise_run_reaches_track_with_small_true_error(d, seed):
-    w = World(QUIET, seed, d)
+@pytest.mark.parametrize("d,seed,emitter", [(2.0, 0, "radar"), (12.0, 1, "radar"), (15.0, 2, "radar"), (12.0, 1, "horn")])
+def test_zero_noise_run_reaches_track_with_small_true_error(d, seed, emitter):
+    w = World(QUIET.replace_path("geometry.emitter", emitter), seed, d)
     c = PsdController(w)
     c.start()
     assert run(w, c, 60, "TRACK") == "TRACK"
@@ -82,14 +83,14 @@ def test_radar_is_braked_in_track_and_moves_only_in_a_gap():
     w.push_side("radar", 0.08)
     run(w, c, 8)
     assert [w.servos[i].pos for i in (3, 4, 5)] == radar_before
-    assert any(a.startswith("radar drift") for a in c.alerts)
+    assert c.alerts  # radar drift, spot leaving, or beam lost: radar is braked, so only an alert
     c.radar_gap = True
-    run(w, c, 10)
+    run(w, c, 15)
     assert [w.servos[i].pos for i in (3, 4, 5)] != radar_before
     assert np.abs(w.true_errors()[2:4]).max() < 0.03
 
 
-def test_short_block_is_bridged_long_loss_rescans():
+def test_short_block_is_bridged_long_loss_waits_for_gap_then_rescans():
     w = World(QUIET, 4, 12.0)
     c = PsdController(w)
     c.start()
@@ -101,7 +102,10 @@ def test_short_block_is_bridged_long_loss_rescans():
     assert c.state == "TRACK" and not c.klt_bridge
     w.block_beam(3.0)
     run(w, c, 1.5)
-    assert c.state == "SCAN"
+    assert c.state == "TRACK" and any(a.startswith("beam lost") for a in c.alerts)  # radar braked: wait
+    c.radar_gap = True
+    run(w, c, 0.2)
+    assert c.state == "SCAN" and not w.servos[3].braked
 
 
 def test_missing_calibration_faults():

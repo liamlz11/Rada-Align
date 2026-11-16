@@ -149,9 +149,9 @@ td.num{text-align:end}
 
   <aside aria-label="חיישני PSD">
     <div class="psd" id="psdA"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-A <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · שגיאת השופר</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-A <span class="pill" data-k="pill">—</span></h3><p data-k="role">בלי עדשה · שגיאת המכ"ם</p><div class="read num"></div><p class="num sub"></p></div></div>
     <div class="psd" id="psdB"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p>מאחורי עדשה · זווית הקרן → שגיאת המכ"ם</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p data-k="role">מאחורי עדשה · זווית הקרן → שגיאת השופר</p><div class="read num"></div><p class="num sub"></p></div></div>
     <div class="psd" id="psdC"><canvas width="264" height="264"></canvas><div>
       <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · roll יחסי ובדיקה צולבת</p><div class="read num"></div><p class="num sub"></p></div></div>
   </aside>
@@ -178,7 +178,7 @@ td.num{text-align:end}
         <span><i style="background:var(--ink-2)"></i>שופר Az</span><span><i style="background:#5f7a8f"></i>שופר El</span>
         <span><i style="background:var(--truth)"></i>אמת מכ"ם Az</span>
       </div>
-      <h2 style="margin-top:14px">Raster scan<small>Pan/Tilt של השופר</small></h2>
+      <h2 style="margin-top:14px">Raster scan<small id="rasterSide">Pan/Tilt של המכ"ם</small></h2>
       <canvas class="plot" id="raster" height="200"></canvas>
     </section>
     <section class="card controls" aria-label="שליטה">
@@ -236,8 +236,8 @@ const C = {ir:css('--ir'), irdim:css('--ir-dim'), survey:css('--survey'), signal
 const TOL = 0.05;
 const STATE_HE = {IDLE:'המתנה',CALIB:'כיול',SETUP:'הצבה',ACQUIRE:'איתור',SCAN:'סריקה',ALIGN:'יישור',VERIFY:'אימות',TRACK:'מעקב',FAULT:'תקלה'};
 const STATE_WHY = {IDLE:'לחץ "התחל יישור"', CALIB:'טוען קובץ כיול ומודד מרחק', SETUP:'מפלס roll בשני הצדדים לפי מדי הזווית',
-  ACQUIRE:'המצלמה מזהה את יחידת ה-PSD (template matching) ו-KLT ננעל', SCAN:'סריקת raster עם Pan/Tilt של השופר עד שהקרן נתפסת',
-  ALIGN:'PID על כל ציר: השופר מאפס את PSD-A, המכ"ם את PSD-B, roll לפי A ו-C', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
+  ACQUIRE:'המצלמה על המכ"ם מזהה את יחידת ה-PSD שעל השופר (template matching) ו-KLT ננעל', SCAN:'סריקת raster עם Pan/Tilt של המכ"ם עד שהקרן נתפסת',
+  ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי A ו-C', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
   TRACK:'השופר מתקן, המכ"ם בבלם ומנוטר', FAULT:''};
 const PIPE = ['CALIB','SETUP','ACQUIRE','SCAN','ALIGN','VERIFY','TRACK'];
 const fmt = (v, n=3) => v==null ? '—' : (v>=0?'+':'') + v.toFixed(n);
@@ -357,22 +357,32 @@ const bore = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.
 let built = false;
 function buildPose(P){
   if (built) return; built = true;
+  // Emitter side carries the lasers and the camera; the receiver carries the PSDs.
+  const radarEm = P.emitter === 'radar';
+  const ES = radarEm ? R.roll : H.roll, TS = radarEm ? H.roll : R.roll;
+  const refR = B(P.radar_lever_m[0], 0, P.radar_lever_m[2]), refH = B(P.horn_lever_m[0], 0, 0);
+  const refE = radarEm ? refR : refH, refT = radarEm ? refH : refR;
   for (const k of ['A','B','C']){
     const [y,z] = P.lasers_m[k];
     const em = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.05,16), matMetal);
-    em.rotation.z = Math.PI/2; em.position.copy(B(P.horn_lever_m[0]+0.02, y, z)); H.roll.add(em); emitters[k]=em;
-    const lv = P.radar_lever_m;
+    em.rotation.z = Math.PI/2; em.position.copy(refE).add(B(0.05, y, z)); ES.add(em); emitters[k]=em;
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.07),
       new THREE.MeshStandardMaterial({color:k==='B'?0x34465a:0x1a2733, emissive:0x000000, metalness:.2, roughness:.6}));
-    plate.position.copy(B(lv[0]+0.01, -y, z+lv[2]*0)).add(B(0,0,lv[2]));
-    R.roll.add(plate); psdMesh[k]=plate;
+    plate.position.copy(refT).add(B(0.03, -y, z)); TS.add(plate); psdMesh[k]=plate;
     if (k==='B'){ const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.03,24),
         new THREE.MeshStandardMaterial({color:0x8fb8d8,metalness:.1,roughness:.05,transparent:true,opacity:.6}));
-      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); R.roll.add(lens); }
+      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); TS.add(lens); }
   }
-  datum.position.copy(B(P.radar_lever_m[0], 0, P.radar_lever_m[2]));
+  // camera next to the lasers on the emitter
+  camBox.parent.remove(camBox); hornCam.parent.remove(hornCam);
+  camBox.position.copy(refE).add(B(0.0, 0.0, -0.22)); hornCam.position.copy(refE).add(B(0.07, 0.0, -0.22));
+  ES.add(camBox); ES.add(hornCam);
+  if (radarEm){ board.position.copy(refH).add(B(0.015,0,0)); }  // the horn's plate now carries the PSDs
+  datum.position.copy(refR);
   panel.position.y = P.radar_lever_m[2]; radome.position.y = P.radar_lever_m[2]; bracket.position.y = P.radar_lever_m[2];
+  emitterIsRadar = radarEm;
 }
+let emitterIsRadar = true;
 
 const D2R = Math.PI/180;
 function applyPose(m){
@@ -394,12 +404,13 @@ function applyPose(m){
   const rx = new THREE.Vector3(1,0,0).transformDirection(R.roll.matrixWorld);
   const ref = datum.getWorldPosition(new THREE.Vector3());
   const hc = new THREE.Vector3(...B(P.horn_lever_m[0],0,0).toArray()).applyMatrix4(H.roll.matrixWorld);
+  const ex = emitterIsRadar ? rx : hx, nT = emitterIsRadar ? hx : rx, pT = emitterIsRadar ? hc : ref;
   for (const kk of ['A','B','C']){
     const o = emitters[kk].getWorldPosition(new THREE.Vector3());
     const blocked = m.blocked;
     let end;
-    const tt = ref.clone().sub(o).dot(rx) / hx.dot(rx);
-    end = o.clone().add(hx.clone().multiplyScalar(blocked ? tt*0.45 : tt));
+    const tt = pT.clone().sub(o).dot(nT) / ex.dot(nT);
+    end = o.clone().add(ex.clone().multiplyScalar(blocked ? tt*0.45 : tt));
     const len = o.distanceTo(end), mid = o.clone().add(end).multiplyScalar(.5);
     const bm = beams[kk]; bm.scale.set(1,len,1); bm.position.copy(mid);
     bm.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), end.clone().sub(o).normalize());

@@ -32,7 +32,7 @@ The rule "NEVER use radar data" is unchanged.
 | --- | --- | --- |
 | PSD type | Continuous 2D PSD (S5991-01 class), not a quadrant detector. Field size for A and C still per 7.1 (≥ 20 mm or diffuser) | C6, Q26 |
 | Laser board | Adjusted by hand (micrometer) in CALIB only, then locked. The whiteboard's "3 stepper motors" are not a separate laser drive | C5, Q29 |
-| Raster scan | With the horn Pan/Tilt servos; no separate scanner. BOM item 7 = 0 | D12, Q24 |
+| Raster scan | With the horn Pan/Tilt servos; no separate scanner. BOM item 7 = 0. **Superseded by 0.1: with the lasers on the radar the raster uses the radar Pan/Tilt** | D12, Q24 |
 | Radar motion | Before the test and in allowed gaps only. During measurement it is braked and monitored, with an alert above 0.03°. The gap signal is still Q21 | C1, Q22 |
 | Servos | Not chosen. We propose 2-3 models from datasheets in task 3. Code is written against the mock (task 17) | Q25 (in progress) |
 | Laser | Per recommendation: 960 nm, Class 1, focusable 10 mm beam, attenuated to about 0.1 mW. Models and the Class to be verified from an official source in task 3 | C7, Q27 (open: does the camera see 960 nm?) |
@@ -41,6 +41,77 @@ The rule "NEVER use radar data" is unchanged.
 
 Still proposals that the doc-diff OK would approve: C2 (pending Q23), C8, C9,
 C10, C11.
+
+**Superseded by 0.1:** the layout below (lasers on the horn, PSDs on the radar) and
+the raster-scan row above (horn servos). Sections 3, 4, 5 and 7 describe the
+earlier layout where not updated; the physics carries over with the two sides
+swapped.
+
+## 0.1 Layout swap: lasers and camera on the radar, PSDs on the horn (Liam, 2026-11-16)
+
+**Decision:** the 3 lasers (on their common board) and the camera move to the radar
+side; the 3 PSDs (A, B with its lens, C) move to the horn. **Why:** the initial manual
+aiming is done at the radar, and a laser on the horn would point at the person
+aiming it. With the lasers on the radar they point away from that person, toward
+the horn.
+
+**What flips** [sim, `rada_align/psd/model.py`, 12 m, mm per deg of each error]:
+
+| PSD (now on the horn) | Reads | Gives |
+| --- | --- | --- |
+| A, no lens | A_y = 205.9·er_az + 1.75·roll, A_z = −205.9·er_el − 2.62·roll | **radar error directly** |
+| B, lens | B = 0.873·(eh − er) per axis | horn error = B/f + er |
+| C, no lens | C_y = 205.9·er_az − 1.75·roll, C_z = −205.9·er_el | roll from C − A, redundancy |
+
+- **Observability is unchanged:** rank 5, all 5 errors observable [sim, tests/test_psd.py].
+- **The critical radar error is now read by a lensless PSD 11.8 m away.** That
+  gives 205.9 mm per degree, so PSD noise is negligible.
+- **Datum transfer moves to the laser board.**
+  - The laser board on the radar datum must be calibrated parallel to the radar
+    mechanical axis, and that error goes 1:1 into the radar error.
+  - Before the swap it was the PSD-B null on the radar.
+  - The budget row is the same: 0.015° datum and 0.010° seat. In config.yaml the
+    calibration residuals are now keyed by mounting point
+    (`calib.radar_datum_sigma_deg`, `radar_seat_sigma_deg`, `horn_axis_sigma_deg`)
+    instead of by component.
+- **Raster scan now uses the RADAR Pan/Tilt, not the horn's.** Turning the horn
+  barely moves the spot on its own PSDs (only the 0.1 m lever), so only the
+  emitter side can sweep the beam.
+  - This replaces the team decision "raster with the horn servos" (Q24); see the
+    question in the stage report.
+  - Scanning happens before the test, while the radar may still move (C1).
+- **ACQUIRE:** the camera on the radar finds the PSD unit on the horn (template
+  matching), and the radar coarse-points.
+- **TRACK** (radar braked):
+  - The horn may still correct its own error (B + A).
+  - If the radar moves (wind, settling, a knock), the spot drifts on the horn PSDs
+    and only the radar can fix it. The system raises an alert ("radar moved", or
+    "beam lost") and corrects only in an allowed gap: radar raster, then ALIGN,
+    VERIFY, brake.
+  - Simulated: after a 0.08° knock the spot leaves the 20 mm PSD; with the gap
+    allowed the system recovers to errors < 0.001° [sim, tests/test_psd.py].
+- **Eye safety:** the beams now point at the horn. Class 1 at 960 nm, attenuated
+  to about 0.1 mW (C7), is unchanged.
+- **Spot size vs PSD size (7.1) is unchanged in form.** It is now radar head motion
+  (wind, settling) that moves the spot on the horn PSDs.
+
+Monte Carlo against truth after the swap, 200 runs each
+(`python -m rada_align.psd.montecarlo --runs 200 --distance D`, assumed parameters):
+
+| d | reported pass | TRUE pass | false accepts | p95 true score (eh_az, eh_el, er_az, er_el) |
+| --- | --- | --- | --- | --- |
+| 2 m | 98.5 % | 23.0 % | 75.5 % | 0.067, 0.065, 0.0754, 0.0749 |
+| 12 m | 99.0 % | 43.5 % | 55.5 % | 0.0548, 0.0559, 0.0695, 0.0642 |
+| 15 m | 93.5 % | 43.0 % | 50.5 % | 0.0556, 0.0525, 0.0627, 0.0622 |
+
+- **The dominant cause is the calibration residuals** (datum, seat, horn axis), which
+  the PSDs cannot see. Run at 12 m with them switched off:
+  - reported pass 99.0 %, TRUE pass 96.0 %, false accepts 3.0 %
+  - p95 true score 0.0438-0.0464°
+- **STOP gate of task 14:** true pass is below reported, and p95 > 0.05°. No
+  parameter was tuned. The reported pass does not include the calibration
+  uncertainty (U_bias), which is the same lesson as the old design (PROGRESS,
+  task 5).
 
 ---
 
@@ -504,7 +575,7 @@ Proposal: 16-bit, simultaneous sampling.
 
 | Source | ° |
 | --- | --- |
-| PSD-B optical axis to radar datum (calibration; replaces the camera-to-datum row) | 0.015 |
+| PSD-B optical axis to radar datum (calibration; replaces the camera-to-datum row; after the swap (0.1): laser board to radar datum) | 0.015 |
 | Wind and tripod settling (real motion) | 0.015 |
 | PSD unit seat repeatability on the datum | 0.010 |
 | Laser B vs A/C parallelism (differential) | 0.005 |
@@ -519,7 +590,7 @@ Proposal: 16-bit, simultaneous sampling.
 | Source | ° |
 | --- | --- |
 | Wind and tripod settling | 0.015 |
-| Laser board to horn axis parallelism (lab CALIB) | 0.010 |
+| Laser board to horn axis parallelism (lab CALIB; after the swap (0.1): PSD-B null to horn axis) | 0.010 |
 | Servo residual | 0.005 |
 | Turbulence | 0.003 |
 | PSD-A position vs radar reference, 0.5 mm at 12 m | 0.0024 |

@@ -96,11 +96,15 @@ class World:
         off = g.setup_offset_short_m if self.geo.d <= 3.0 else g.setup_offset_m
         self.trans = np.array([rng.uniform(-off, off), rng.uniform(-off, off), 0.0, 0.0])
         lz = self.cfg.laser
-        common = rng.normal(0, lz.board_sigma_deg, 2) * DEG
         c = self.cfg.calib
+        radar_unit = math.hypot(c.radar_datum_sigma_deg, c.radar_seat_sigma_deg)
+        horn_unit = c.horn_axis_sigma_deg
+        emitter_sigma, receiver_sigma = ((radar_unit, horn_unit) if self.geo.emitter == "radar"
+                                         else (horn_unit, radar_unit))
+        common = rng.normal(0, emitter_sigma, 2) * DEG  # laser board vs its side's axis
         self.bias = Biases(
             laser_dir={k: tuple(common + rng.normal(0, lz.differential_sigma_deg, 2) * DEG) for k in PSDS},
-            b_null=tuple(rng.normal(0, math.hypot(c.psd_b_null_sigma_deg, c.seat_sigma_deg), 2) * DEG),
+            b_null=tuple(rng.normal(0, receiver_sigma, 2) * DEG),  # PSD-B null vs its side's axis
             psd_pos_mm={k: tuple(rng.normal(0, c.psd_position_sigma_mm, 2)) for k in PSDS},
         )
         w = self.cfg.wind
@@ -192,13 +196,15 @@ class World:
         return self.geo.d + self.range_bias
 
     def camera_acquire(self) -> tuple[float, float] | None:
-        """Template match of the PSD unit -> horn error estimate in degrees.
+        """Template match of the PSD unit -> pointing error of the EMITTER side
+        (the side that carries the camera and the lasers), in degrees.
 
         Camera-to-laser-board boresight error is a fixed bias per setup."""
         e = self.true_errors()
-        if self.blocked or max(abs(e[0]), abs(e[1])) > self.cfg.camera.fov_half_deg:
+        i = 2 if self.geo.emitter == "radar" else 0
+        if self.blocked or max(abs(e[i]), abs(e[i + 1])) > self.cfg.camera.fov_half_deg:
             return None
-        return float(e[0] + self.camera_bias[0]), float(e[1] + self.camera_bias[1])
+        return float(e[i] + self.camera_bias[0]), float(e[i + 1] + self.camera_bias[1])
 
     # --------------------------------------------------------------- events
     def block_beam(self, seconds: float) -> None:

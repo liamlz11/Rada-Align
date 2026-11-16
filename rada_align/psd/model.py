@@ -72,6 +72,9 @@ class Geometry:
         self.radar_lever = np.array(g.radar_lever_m, dtype=float)
         self.lasers = {"A": g.laser_a_m, "B": g.laser_b_m, "C": g.laser_c_m}
         self.f_b = cfg.sensor.b_focal_mm * 1e-3
+        if g.emitter not in ("radar", "horn"):
+            raise ValueError(f"psd.geometry.emitter must be 'radar' or 'horn', got {g.emitter!r}")
+        self.emitter = g.emitter
         self.spot_r99_mm = focused_spot_radius99_mm(
             cfg.laser.launch_radius_mm, self.d, cfg.laser.wavelength_nm
         )
@@ -96,20 +99,24 @@ class Geometry:
         """
         bias = bias or Biases()
         Rh, Rr, ph, hc, ref = self.poses(att, trans)
-        n = Rr @ np.array([1.0, 0, 0])
+        if self.emitter == "radar":
+            RE, refE, RT, refT = Rr, ref, Rh, hc
+        else:
+            RE, refE, RT, refT = Rh, hc, Rr, ref
+        n = RT @ np.array([1.0, 0, 0])
         out = {}
         for k in PSDS:
             y, z = self.lasers[k]
-            origin = ph + Rh @ np.array([self.horn_lever[0], y, z])
+            origin = refE + RE @ np.array([0.0, y, z])
             dy, dz = bias.laser_dir[k]
-            dirb = Rh @ np.array([1.0, dy, dz])
+            dirb = RE @ np.array([1.0, dy, dz])
             dirb /= np.linalg.norm(dirb)
-            centre = ref + Rr @ np.array([0.0, -y, z])
+            centre = refT + RT @ np.array([0.0, -y, z])
             t = (centre - origin) @ n / (dirb @ n)
             hit = origin + t * dirb - centre
-            pos = np.array([hit @ Rr[:, 1], hit @ Rr[:, 2]]) * 1e3 - np.array(bias.psd_pos_mm[k])
+            pos = np.array([hit @ RT[:, 1], hit @ RT[:, 2]]) * 1e3 - np.array(bias.psd_pos_mm[k])
             if k == "B":
-                v = Rr.T @ (-dirb)
+                v = RT.T @ (-dirb)
                 ay = v[1] / v[0] - math.tan(bias.b_null[0])
                 az = v[2] / v[0] - math.tan(bias.b_null[1])
                 out["B"] = np.array([self.f_b * ay, self.f_b * az]) * 1e3

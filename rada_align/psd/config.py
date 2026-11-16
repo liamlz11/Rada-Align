@@ -12,6 +12,7 @@ from ..config import DEFAULT_CONFIG_PATH, _from_dict, _replace_path
 
 @dataclass(frozen=True)
 class GeometryCfg:
+    emitter: str  # 'radar' (lasers + camera on the radar, PSDs on the horn) or 'horn'
     horn_lever_m: tuple[float, float, float]
     radar_lever_m: tuple[float, float, float]
     laser_a_m: tuple[float, float]
@@ -37,14 +38,14 @@ class SensorCfg:
 class LaserCfg:
     wavelength_nm: float
     launch_radius_mm: float
-    board_sigma_deg: float
     differential_sigma_deg: float
 
 
 @dataclass(frozen=True)
 class CalibCfg:
-    psd_b_null_sigma_deg: float
-    seat_sigma_deg: float
+    radar_datum_sigma_deg: float
+    radar_seat_sigma_deg: float
+    horn_axis_sigma_deg: float
     psd_position_sigma_mm: float
 
 
@@ -124,8 +125,9 @@ TOLERANCE_DEG = 0.05  # REQUIREMENT R7 (geometry.tolerance_deg in the legacy sec
 ERROR_SOURCES: dict[str, tuple[str, ...]] = {
     "wind": ("wind.jitter_deg", "wind.sway_deg"),
     "drift": ("wind.drift_deg_per_min",),
-    "laser": ("laser.board_sigma_deg", "laser.differential_sigma_deg"),
-    "calib": ("calib.psd_b_null_sigma_deg", "calib.seat_sigma_deg", "calib.psd_position_sigma_mm"),
+    "laser": ("laser.differential_sigma_deg",),
+    "calib": ("calib.radar_datum_sigma_deg", "calib.radar_seat_sigma_deg", "calib.horn_axis_sigma_deg",
+              "calib.psd_position_sigma_mm"),
     "psd_noise": ("sensor.noise_um",),
     "inclinometer": ("inclinometer.noise_deg", "inclinometer.bias_sigma_deg"),
     "rangefinder": ("rangefinder.sigma_m",),

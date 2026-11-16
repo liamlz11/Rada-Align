@@ -27,6 +27,11 @@ class PsdController:
         self.cfg: PsdConfig = world.cfg
         self.c = self.cfg.control
         self.dt = 1.0 / self.cfg.sensor.rate_hz
+        # Emitter = the side with the lasers and the camera (it scans and acquires).
+        self.emitter = world.geo.emitter
+        self.E_SRV = (3, 4) if self.emitter == "radar" else (0, 1)
+        self.E_ERR = (2, 3) if self.emitter == "radar" else (0, 1)
+        self.E_NAME = self.emitter
         self.state = "IDLE"
         self.sub = ""
         self.fault_reason = ""
@@ -61,7 +66,7 @@ class PsdController:
         self._wp: list[tuple[float, float]] = []
         self._scan_expansions = 0
         self._radar_fix = False
-        self._horn_only = False
+        self._side_only = None
 
     def _log(self, text: str) -> None:
         self.events.append((round(self.w.t, 2), text))
@@ -92,6 +97,9 @@ class PsdController:
                 self._fault(f"{SERVO_NAMES[i]} at travel limit ({s.travel:.1f} deg)")
                 return False
         return ok
+
+    def _Jsub(self, rows, srv) -> np.ndarray:
+        return self.est_model.Jj[np.ix_(list(rows), list(srv))]
 
     def _settled(self) -> bool:
         if any(s.moving for s in self.w.servos):
@@ -167,9 +175,8 @@ class PsdController:
                 if self._t_state > 3.0:
                     self._fault("camera does not see the PSD unit (outside FOV)")
                 return
-            J = self.est_model.Jj[0:2, 0:2]
-            self._command((0, 1), -np.linalg.solve(J, np.array(cam)))
-            self._log(f"PSD unit found by template match, KLT locked; coarse horn error {cam[0]:+.3f}/{cam[1]:+.3f} deg")
+            self._command(self.E_SRV, -np.linalg.solve(self._Jsub(self.E_ERR, self.E_SRV), np.array(cam)))
+            self._log(f"PSD unit found by template match, KLT locked; coarse {self.E_NAME} error {cam[0]:+.3f}/{cam[1]:+.3f} deg")
             self.sub = "coarse point"
             return
         if self._settled():
@@ -183,7 +190,7 @@ class PsdController:
         step = math.degrees(math.atan(step_mm / d_mm))
         half = half_deg or max(self.c.scan_sigmas * self.cfg.camera.acquire_sigma_deg, step)
         enc = self._enc()
-        c_pan, c_tilt = enc[0], enc[1]
+        c_pan, c_tilt = enc[self.E_SRV[0]], enc[self.E_SRV[1]]
         n = int(math.ceil(2 * half / step)) + 1
         tilts = np.linspace(c_tilt - half, c_tilt + half, n)
         wp = []
@@ -195,19 +202,20 @@ class PsdController:
         self._wp = wp
         self.scan_info = {"centre": [float(c_pan), float(c_tilt)], "half_deg": float(half), "step_deg": float(step)}
         self.scan_path = []
-        self._goto("SCAN", f"raster +/-{half:.3f} deg, step {step:.4f} deg")
+        self._goto("SCAN", f"{self.E_NAME} raster +/-{half:.3f} deg, step {step:.4f} deg")
 
     def _s_scan(self, psd) -> None:
         enc = self._enc()
-        self.scan_path.append((float(enc[0]), float(enc[1])))
+        p, t = self.E_SRV
+        self.scan_path.append((float(enc[p]), float(enc[t])))
         if psd["A"].valid or psd["C"].valid:
-            for i in (0, 1):
+            for i in self.E_SRV:
                 s = self.w.servos[i]
                 s.target = s.pos
             self._log(f"beam captured on PSD-{'A' if psd['A'].valid else 'C'} after {self._t_state:.1f} s of scan")
             self._goto("ALIGN", "settle")
             return
-        if self.w.servos[0].moving or self.w.servos[1].moving:
+        if self.w.servos[p].moving or self.w.servos[t].moving:
             return
         if not self._wp:
             if self._scan_expansions < 2:
@@ -217,8 +225,8 @@ class PsdController:
             self._fault("beam not found in the raster window")
             return
         pan, tilt = self._wp.pop(0)
-        self.w.servos[0].command(pan)
-        self.w.servos[1].command(tilt)
+        self.w.servos[p].command(pan)
+        self.w.servos[t].command(tilt)
 
     # ------------------------------------------------------------ ALIGN
     def _measure(self, psd, need: tuple[str, ...]):
@@ -254,12 +262,12 @@ class PsdController:
                 self._log("beam lost during ALIGN")
                 self._start_scan()
                 return
-            # spot partly off PSD-A/C: re-centre the horn on the clipped centroid
+            # spot partly off PSD-A/C: re-centre the emitter on the clipped centroid
             m = np.mean([b[0] for b in self._buf], axis=0)
-            scale = self.est_model.G[0, 0]
-            rough = np.array([(m[0] + m[4]) / 2 / scale, (m[1] + m[5]) / 2 / self.est_model.G[1, 1]])
-            self._command((0, 1), -np.linalg.solve(self.est_model.Jj[0:2, 0:2], rough))
-            self._log(f"spot at the PSD edge: horn re-centred by {rough[0]:+.3f}/{rough[1]:+.3f} deg")
+            i, j = self.E_ERR
+            rough = np.array([(m[0] + m[4]) / 2 / self.est_model.G[0, i], (m[1] + m[5]) / 2 / self.est_model.G[1, j]])
+            self._command(self.E_SRV, -np.linalg.solve(self._Jsub(self.E_ERR, self.E_SRV), rough))
+            self._log(f"spot at the PSD edge: {self.E_NAME} re-centred by {rough[0]:+.3f}/{rough[1]:+.3f} deg")
             self.sub = "settle"
             return
         use_c = np.mean([b[3] for b in good]) >= 0.8
@@ -277,21 +285,24 @@ class PsdController:
             self._log("before: horn {:+.3f}/{:+.3f}, radar {:+.3f}/{:+.3f} deg".format(*e[:4]))
         inc = self.w.read_inclinometers()
         target = np.array([*e[:4], e[4] if "C" in self.use else 0.0, inc["radar_roll"]])
-        if self._horn_only:
-            # re-centre during the test: radar braked, horn axes only, back to TRACK
-            if np.all(np.abs(target[:2]) < self.c.deadband_deg):
-                self._horn_only = False
+        if self._side_only is not None:
+            # re-centre during the test on one side only, then back to TRACK
+            rows, srv, name = self._side_only
+            if np.all(np.abs(target[list(rows)]) < self.c.deadband_deg):
+                self._side_only = None
+                if name == "radar":
+                    self._brake_radar(True)
                 self._track_est.clear(); self._track_true.clear(); self._track_ok.clear()
                 self._goto("TRACK", "radar braked, horn PID")
                 return
             self._iter += 1
             if self._iter > self.c.max_iterations:
-                self._fault("no convergence in horn re-alignment")
+                self._fault(f"no convergence in {name} re-alignment")
                 return
-            delta = -self.c.kp * np.linalg.solve(self.est_model.Jj[0:2, 0:2], target[:2])
+            delta = -self.c.kp * np.linalg.solve(self._Jsub(rows, srv), target[list(rows)])
             self.corrections += 1
-            if self._command((0, 1), delta):
-                self._log(f"horn re-align #{self._iter}: {delta[0]:+.3f}/{delta[1]:+.3f} deg")
+            if self._command(srv, delta):
+                self._log(f"{name} re-align #{self._iter}: {delta[0]:+.3f}/{delta[1]:+.3f} deg")
             self.sub = "settle"
             return
         if np.all(np.abs(target[:4]) < self.c.deadband_deg) and abs(target[4]) < 0.1:
@@ -354,13 +365,23 @@ class PsdController:
             self._lost_t += self.dt
             self.klt_bridge = True
             if self._lost_t > self.c.beam_lost_s:
-                self._log(f"beam lost > {self.c.beam_lost_s:.1f} s: back to SCAN (radar stays braked)")
+                if self.emitter == "radar" and not self.radar_gap:
+                    msg = "beam lost: re-scan needs the radar; waiting for a correction gap"
+                    if msg not in self.alerts:
+                        self.alerts.append(msg)
+                        self._log("ALERT " + msg)
+                    return
+                self._log(f"beam lost > {self.c.beam_lost_s:.1f} s: back to SCAN with the {self.E_NAME}")
+                self.alerts = [a for a in self.alerts if not a.startswith("beam lost")]
                 self.klt_bridge = False
                 self._lost_t = 0.0
+                if self.emitter == "radar":
+                    self._brake_radar(False)
                 self._start_scan()
             return
         if self.klt_bridge:
-            self._log(f"beam back after {self._lost_t:.2f} s (KLT bridged the horn)")
+            self._log(f"beam back after {self._lost_t:.2f} s (KLT bridged the {self.E_NAME} pointing)")
+            self.alerts = [a for a in self.alerts if not a.startswith("beam lost")]
         self.klt_bridge = False
         self._lost_t = 0.0
         ok, e = self._sample_errors(psd)
@@ -374,12 +395,23 @@ class PsdController:
             self.est = e
         recent = list(self._track_ok)[-int(1.0 / self.dt):]
         if not self._radar_fix and len(recent) >= int(1.0 / self.dt) and np.mean(recent) < 0.5:
-            self._log("spot leaving the PSD in TRACK: horn re-aligns (radar stays braked)")
-            self._track_ok.clear()
-            self._iter = 0
-            self._horn_only = True
-            self._goto("ALIGN", "settle")
-            return
+            if self.emitter == "radar" and not self.radar_gap:
+                msg = "radar moved: spot leaving the PSD; radar correction needs a gap"
+                if msg not in self.alerts:
+                    self.alerts.append(msg)
+                    self._log("ALERT " + msg)
+            else:
+                self._log(f"spot leaving the PSD in TRACK: {self.E_NAME} re-aligns")
+                self.alerts = [a for a in self.alerts if not a.startswith("radar moved")]
+                self._track_ok.clear()
+                self._iter = 0
+                if self.emitter == "radar":
+                    self._brake_radar(False)
+                self._side_only = (self.E_ERR, self.E_SRV, self.E_NAME)
+                self._goto("ALIGN", "settle")
+                return
+        elif len(recent) and np.mean(recent) >= 0.9:
+            self.alerts = [a for a in self.alerts if not a.startswith("radar moved")]
         while len(self._track_est) > n_max:
             self._track_est.popleft()
         while len(self._track_true) > n_max:
