@@ -198,6 +198,11 @@ not researched except where a source is given; treat every price as
 Prices are the team's rough figures [team, unverified] unless a source is
 given. Specs from docs/FINAL_DESIGN.md.
 
+Layout changes since this table: lasers + camera on the radar, PSDs on the horn
+(FINAL_DESIGN 0.1); both units hang below their side, and the relative roll comes
+from the two inclinometers, PSD-C is a cross-check (FINAL_DESIGN 0.2). The two
+brackets get longer (0.40-0.58 m drop); their stiffness is not yet specified.
+
 | # | Part | Qty | Role | Spec that matters | 2 m demo | Field 10-15 m |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Servo with optical encoder + driver | 6 | horn and radar Pan/Tilt/Roll | >= 0.001 deg per count at the output, low backlash, brake on the radar axes | same | same |

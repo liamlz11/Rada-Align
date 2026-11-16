@@ -189,7 +189,7 @@ td.num{text-align:end}
     <div class="psd" id="psdB"><canvas width="264" height="264"></canvas><div>
       <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p data-k="role">מאחורי עדשה · זווית הקרן → שגיאת השופר</p><div class="read num"></div><p class="num sub"></p></div></div>
     <div class="psd" id="psdC"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · roll יחסי ובדיקה צולבת</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · בדיקה צולבת (ה-roll ממדי הזווית)</p><div class="read num"></div><p class="num sub"></p></div></div>
   </aside>
 
   <div class="row">
@@ -282,7 +282,7 @@ const TOL = 0.05;
 const STATE_HE = {IDLE:'המתנה',CALIB:'כיול',SETUP:'הצבה',ACQUIRE:'איתור',SCAN:'סריקה',ALIGN:'יישור',VERIFY:'אימות',TRACK:'מעקב',FAULT:'תקלה'};
 const STATE_WHY = {IDLE:'לחץ "התחל יישור"', CALIB:'טוען קובץ כיול ומודד מרחק', SETUP:'מפלס roll בשני הצדדים לפי מדי הזווית',
   ACQUIRE:'המצלמה על המכ"ם מזהה את יחידת ה-PSD שעל השופר (template matching) ו-KLT ננעל', SCAN:'סריקת raster עם Pan/Tilt של המכ"ם עד שהקרן נתפסת',
-  ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי A ו-C', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
+  ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי מדי הזווית', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
   TRACK:'השופר מתקן, המכ"ם בבלם ומנוטר', FAULT:''};
 const PIPE = ['CALIB','SETUP','ACQUIRE','SCAN','ALIGN','VERIFY','TRACK'];
 const WX_HE = {clear:'בהיר', rain_light:'גשם קל', rain_heavy:'גשם חזק', fog:'ערפל', shimmer:'אדי חום', sun:'שמש ישירה'};
@@ -749,8 +749,8 @@ async function tour(){
     await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
     caption('חסימה קצרה של הקרן', 'מישהו עובר בקו. ה-KLT במצלמה מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
     await cmd('block',0.6); await simWait(id, 1); await until(id, settled, 20); await simWait(id, 3);
-    caption('גשם קל', 'בסימולציה: טיפה על חלון מעמעמת PSD אחד, הדגימה נפסלת והמעקב ממשיך.', S(6));
-    await cmd('weather','rain_light'); await simWait(id, 12); await cmd('weather','clear'); await simWait(id, 2);
+    caption('גשם קל', 'בסימולציה: כשטיפה פוגעת בחלון היא מעמעמת PSD אחד; הדגימה נפסלת והמעקב ממשיך.', S(6));
+    await cmd('weather','rain_light'); await simWait(id, 25); await cmd('weather','clear'); await simWait(id, 2);
     caption('מכה בחצובת המכ"ם', 'המכ"ם בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(7));
     await cmd('push','radar'); await simWait(id, 5);
     caption('חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(8));

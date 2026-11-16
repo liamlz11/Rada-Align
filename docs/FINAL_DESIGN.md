@@ -150,7 +150,7 @@ Liam: the laser board and the PSD unit hang BELOW the radar and the horn, not on
 | Direct sun | PSD noise x2 after filter and lock-in | noise only |
 
 - Design additions: amplitude gate (`sensor.amplitude_gate: 0.95`): a sample is used only if its lock-in amplitude is at least 95 % of the strongest of the three PSDs, so a drop on one window drops that sample while fog (all three alike) does not. A dimmed PSD is not treated as "spot leaving the PSD" (no false radar alert, no re-centre). VERIFY also needs `control.min_clean_fraction: 0.5` of samples free of a dip.
-- The weather has its own random generator, so clear and rainy runs of the same seed share the setup and the sensor noise (paired comparison).
+- The weather has its own random generator, so clear and rainy runs of the same seed start from the same setup. The sensor noise is shared only until the first dropped sample (from then on the main random stream advances differently), so the rows are not a paired comparison; differences of 2-3 points between rows are noise.
 - Not modelled: rain or fog on the camera (acquisition and KLT), water film on a window, wind-driven spray, wet-ground settling. The drop model is the weakest part: the hit rate and the centroid shift are estimates, to be measured with a wet window on the bench.
 
 Monte Carlo, 200 runs at 12 m, same seeds, all error sources on [sim]:
@@ -165,6 +165,28 @@ Monte Carlo, 200 runs at 12 m, same seeds, all error sources on [sim]:
 | direct sun | 100.0 % | 44.5 % | 55.5 % | 11.3 s | 0 |
 
 Pass including U_bias is 0.0 % in every row (unchanged finding: the assumed radar-side calibration is the limit, section 0.1). Reading: light rain, fog, shimmer and sun do not change the result in this simulation; heavy rain costs 7 points of reported pass and 5 s, from VERIFY windows with too many dips and ALIGN runs that do not converge. Clear weather at 2 / 12 / 15 m after the two geometry changes: reported 98.0 / 100.0 / 88.0 %, TRUE 24.0 / 44.0 / 44.0 %, false accepts 74.0 / 56.0 / 44.0 %.
+
+Holding TRACK, 20 seeds at 12 m, weather on from the start, then 60 s after first reaching TRACK [sim]:
+
+| Condition | Reached TRACK | Faults | A+B samples used | Time with an alert | p95 TRUE worst axis |
+|---|---|---|---|---|---|
+| clear | 20/20 | 0 | 95.1 % | 2.3 % | 0.0539 deg |
+| light rain | 20/20 | 0 | 90.7 % | 2.1 % | 0.0527 deg |
+| heavy rain | 20/20 | 0 | 61.4 % | 2.2 % | 0.0556 deg |
+| fog | 20/20 | 0 | 95.5 % | 2.6 % | 0.0536 deg |
+| heat shimmer | 19/20 | 1 | 95.6 % | 3.2 % | 0.0530 deg |
+| direct sun | 20/20 | 0 | 95.7 % | 2.3 % | 0.0538 deg |
+
+Reading: rain costs samples (a drop on a window drops them), not accuracy; the p95 TRUE error is the same in every row and is set by the calibration residuals, as in clear weather (section 0.1). With 20 runs, a 1-run difference is noise.
+
+15 m regression check, 200 runs, clear [sim]. Before the units moved below, 15 m gave reported 93.5 % / TRUE 43.0 % / false accepts 50.5 %, 10 faults "too few valid samples":
+
+| 15 m, units below | Reported pass | TRUE pass | False accepts | "Too few valid samples" faults |
+|---|---|---|---|---|
+| roll from PSD A/C | 91.5 % | 35.0 % | 56.5 % | 15 |
+| roll from inclinometers (chosen) | 88.0 % | 44.0 % | 44.0 % | 21 |
+
+Reading: the inclinometer roll trades about 3.5 points of reported pass (6 more faults) for 9 points of TRUE pass and 12.5 fewer points of false accepts. The extra faults are not diagnosed: the fault says the spot leaves the 20 mm PSD too often under the assumed wind, and why the inclinometer roll makes that more frequent is open. 200 runs give about +/-2 points of binomial noise, so part of the gap may be noise.
 
 ## 1. The design, D1-D12
 
@@ -219,6 +241,8 @@ point and with it the line. The loop absorbs this in a few iterations [sim, 7.2]
 
 ## 3. Layout (text sketch, not to scale; offsets are ASSUMPTION)
 
+> Superseded in two steps: the lasers and camera are on the radar and the PSDs on the horn (section 0.1), and both units hang 0.40-0.58 m below their side (section 0.2). The sketch and offsets below are the original layout.
+
 ```
  HORN SIDE (servos Pan/Tilt/Roll)                RADAR SIDE (servos Pan/Tilt/Roll)
 
@@ -250,6 +274,8 @@ point and with it the line. The loop absorbs this in a few iterations [sim, 7.2]
 ---
 
 ## 4. PSD roles
+
+> Since section 0.1, PSD-A reads the radar error and PSD-B the horn error. Since section 0.2, the relative roll comes from the two inclinometers and PSD-C is redundancy and a cross-check only.
 
 | PSD | Optics | Reads [sim, 12 m, mm per deg of each error] | Gives | Drives |
 | --- | --- | --- | --- | --- |
