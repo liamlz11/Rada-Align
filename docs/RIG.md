@@ -200,7 +200,7 @@ given. Specs from docs/FINAL_DESIGN.md.
 
 Layout changes since this table: lasers + camera on the radar, PSDs on the horn
 (FINAL_DESIGN 0.1); both units hang below their side, and the relative roll comes
-from the two inclinometers, PSD-C is a cross-check (FINAL_DESIGN 0.2). The two
+from the two inclinometers, PSD-C is a third position reading and a cross-check (FINAL_DESIGN 0.2). The two
 brackets get longer (0.40-0.58 m drop); their stiffness is not yet specified.
 
 | # | Part | Qty | Role | Spec that matters | 2 m demo | Field 10-15 m |
