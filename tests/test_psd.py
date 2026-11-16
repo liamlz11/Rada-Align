@@ -137,3 +137,23 @@ def test_demo_server_streams_and_accepts_commands():
         assert msg["sim"] is True and msg["state"] in msg["states"]
         assert set(msg["psd"]) == {"A", "B", "C"}
         assert client.post("/api/command", json={"name": "bogus"}).status_code == 400
+
+
+def test_u_bias_matches_sampled_calibration_residuals():
+    """U_bias (k=2) from linear propagation equals 2x the spread of the estimate
+    error caused by calibration residuals drawn the way the world draws them."""
+    from rada_align.psd.estimator import PsdEstimator
+
+    cfg = quiet(CFG, ("laser", "calib"))
+    est = PsdEstimator(Geometry(cfg, 12.0))
+    use = ("A", "B", "C")
+    u = est.u_bias_deg(use)
+    z6, z4 = np.zeros(6), np.zeros(4)
+    r0 = est.geo.readings_vector(z6, z4)
+    errs = []
+    for seed in range(400):
+        w = World(cfg, seed, 12.0)
+        errs.append((est.estimator_for(use) @ (est.geo.readings_vector(z6, z4, w.bias) - r0))[:4])
+    spread = 2 * np.std(errs, axis=0)
+    assert np.allclose(spread, u, rtol=0.15)
+    assert np.all(PsdEstimator(Geometry(QUIET, 12.0)).u_bias_deg(use) == 0)

@@ -109,7 +109,21 @@ Monte Carlo against truth after the swap, 200 runs each
   - reported pass 99.0 %, TRUE pass 96.0 %, false accepts 3.0 %
   - p95 true score 0.0438-0.0464°
 - **STOP gate of task 14:** true pass is below reported, and p95 > 0.05°. No
-  parameter was tuned. The reported pass does not include the calibration
+  parameter was tuned.
+- **Resolution (Liam, 2026-11-16):** the system now also reports score + U_bias
+  per axis, and a strict state "aligned including calibration uncertainty".
+  - U_bias (k = 2) is propagated from the calibration sigmas through the
+    estimator and matches sampling within 15 % [tests/test_psd.py].
+  - At 12 m, U_bias = 0.037° on the radar axes and 0.024° on the horn axes
+    (A+B+C) [sim].
+  - Monte Carlo, 200 runs at 2/12/15 m: pass incl. U_bias 0.0 %, false accepts
+    incl. U_bias 0.0 %.
+  - The strict state never lies, but it is unreachable with these assumptions:
+    0.037 + 2σ wind (about 0.03) > 0.05 [arith].
+  - To pass strictly, the radar-side calibration must reach roughly
+    U_bias < 0.05 − 0.03 = 0.02°, i.e. a 1-sigma datum+seat residual of about
+    0.01° instead of 0.018° [arith], or the wind sigma must be smaller (measure it,
+    task 9.8). The reported pass does not include the calibration
   uncertainty (U_bias), which is the same lesson as the old design (PROGRESS,
   task 5).
 

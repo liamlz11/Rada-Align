@@ -25,7 +25,11 @@ def _vec(v, nd=5):
 def _score(s):
     if s is None:
         return None
-    return {"mean": _vec(s["mean"]), "sigma": _vec(s["sigma"]), "score": _vec(s["score"]), "pass": bool(s["pass"])}
+    out = {"mean": _vec(s["mean"]), "sigma": _vec(s["sigma"]), "score": _vec(s["score"]), "pass": bool(s["pass"])}
+    if "u_bias" in s:
+        out.update({"u_bias": _vec(s["u_bias"]), "score_with_bias": _vec(s["score_with_bias"]),
+                    "pass_with_bias": bool(s["pass_with_bias"])})
+    return out
 
 
 class PsdSession:
@@ -168,6 +172,7 @@ class PsdSession:
             "distance_m": geo.d,
             "tolerance_deg": TOLERANCE_DEG,
             "aligned": c.aligned,
+            "aligned_with_bias": c.aligned_with_bias,
             "klt_bridge": c.klt_bridge,
             "radar_gap": c.radar_gap,
             "radar_braked": all(w.servos[i].braked for i in (3, 4, 5)),

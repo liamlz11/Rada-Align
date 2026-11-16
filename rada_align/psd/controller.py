@@ -337,13 +337,14 @@ class PsdController:
         true = np.array([b[2] for b in self._buf])
         ts = window_score(true)
         if len(est) > 1:
-            rs = window_score(est)
+            rs = window_score(est, self.est_model.u_bias_deg(self.use or ("A", "B")))
             passed = rs["pass"] and frac >= self.c.min_valid_fraction
         else:
             rs, passed = None, False
         self.window = {"kind": "verify", "valid_fraction": frac, "reported": rs, "truth": ts, "pass": passed}
         if passed:
-            self.after = {"reported": {k: v.tolist() for k, v in rs.items() if k != "pass"},
+            self.after = {"reported": {k: v.tolist() for k, v in rs.items() if not k.startswith("pass")},
+                          "pass_with_bias": rs["pass_with_bias"],
                           "truth": {k: v.tolist() for k, v in ts.items() if k != "pass"},
                           "truth_pass": ts["pass"], "valid_fraction": frac}
             self._log("VERIFY passed: score " + " ".join(f"{s:.4f}" for s in rs["score"])
@@ -424,7 +425,7 @@ class PsdController:
                 self._track_true.clear()
             return
         if len(self._track_est) > 10:
-            rs = window_score(np.array(self._track_est))
+            rs = window_score(np.array(self._track_est), self.est_model.u_bias_deg(self.use or ("A", "B")))
             ts = window_score(np.array(self._track_true))
             self.track_window = {"kind": "track", "reported": rs, "truth": ts,
                                  "full": len(self._track_true) >= n_max,
@@ -460,6 +461,16 @@ class PsdController:
             self.alerts = [a for a in self.alerts if not a.startswith("radar drift")]
 
     # ------------------------------------------------------------ status
+    @property
+    def aligned_with_bias(self) -> bool:
+        """Also passes with the calibration uncertainty added (strict state)."""
+        if not self.aligned:
+            return False
+        tw = self.track_window
+        if tw is not None and tw["full"]:
+            return bool(tw["reported"]["pass_with_bias"])
+        return bool(self.after and self.after["pass_with_bias"])
+
     @property
     def aligned(self) -> bool:
         if self.state != "TRACK" or self.klt_bridge:

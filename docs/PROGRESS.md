@@ -225,3 +225,9 @@ Template:
 - Monte Carlo (200 runs, assumed parameters): 2 m reported 98.5% / TRUE 23.0% / false accepts 75.5%; 12 m 99.0% / 43.5% / 55.5%; 15 m 93.5% / 43.0% / 50.5%. With calibration residuals off at 12 m (earlier run, lasers-on-radar): 99.0% / 96.0% / 3.0%. STOP gate of task 14 triggered (true < reported, p95 > 0.05): dominant cause = calibration residuals (datum transfer, seat, horn axis), not tuned.
 - Long runs 240 s, full noise: no FAULT at 2/12/15 m; alerts 3-80% of the time because the braked radar drifts/sways past 0.03 deg under the assumed wind and drift.
 - Open: STOP gate decision (how to show/handle U_bias); Q24 raster now on radar servos; Q23; field PSD size.
+
+## 2026-11-16 – Task 14 STOP gate resolved: score with U_bias (Liam: "Add score with U_bias")
+- Built: PsdEstimator.u_bias_deg (k=2 calibration uncertainty per axis, linear propagation of the calibration-file sigmas, by mounting point); window_score adds score_with_bias and pass_with_bias; controller aligned_with_bias; Monte Carlo prints pass incl. U_bias and its false accepts; demo shows "aligned (measured)" vs "aligned including calibration uncertainty" and U_bias per axis. Raster on radar servos approved (Q24).
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> all pass (new: U_bias equals 2x the sampled spread within 15%).
+- Monte Carlo (200 runs): 2 m reported 98.5% / TRUE 23.0% / false accepts 75.5% / incl. U_bias 0.0% (false accepts 0.0%); 12 m 99.0% / 43.5% / 55.5% / 0.0% (0.0%); 15 m 93.5% / 43.0% / 50.5% / 0.0% (0.0%). U_bias at 12 m: horn 0.0237/0.0242, radar 0.0369/0.0372 deg.
+- Finding: strict pass needs a radar-side calibration of about 0.01 deg (1 sigma) instead of the assumed 0.018, or less wind than assumed [arith]. Not tuned.

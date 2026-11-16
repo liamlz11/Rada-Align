@@ -15,7 +15,7 @@ import numpy as np
 
 from ..disturbances import OUProcess
 from .config import PsdConfig
-from .model import DEG, PSDS, SERVO_NAMES, Biases, Geometry
+from .model import DEG, PSDS, SERVO_NAMES, Biases, Geometry, unit_sigmas_deg
 
 
 class Servo:
@@ -97,10 +97,7 @@ class World:
         self.trans = np.array([rng.uniform(-off, off), rng.uniform(-off, off), 0.0, 0.0])
         lz = self.cfg.laser
         c = self.cfg.calib
-        radar_unit = math.hypot(c.radar_datum_sigma_deg, c.radar_seat_sigma_deg)
-        horn_unit = c.horn_axis_sigma_deg
-        emitter_sigma, receiver_sigma = ((radar_unit, horn_unit) if self.geo.emitter == "radar"
-                                         else (horn_unit, radar_unit))
+        emitter_sigma, receiver_sigma = unit_sigmas_deg(self.cfg, self.geo.emitter)
         common = rng.normal(0, emitter_sigma, 2) * DEG  # laser board vs its side's axis
         self.bias = Biases(
             laser_dir={k: tuple(common + rng.normal(0, lz.differential_sigma_deg, 2) * DEG) for k in PSDS},

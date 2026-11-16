@@ -27,10 +27,13 @@ def one_run(cfg, seed, distance_m, max_s=120.0) -> dict:
     out = {"state": c.state, "t": w.t, "fault": c.fault_reason, "iters": c._iter}
     if c.after:
         out["reported_pass"] = True
+        out["with_bias_pass"] = bool(c.after["pass_with_bias"])
+        out["u_bias"] = c.after["reported"]["u_bias"]
         out["true_pass"] = bool(c.after["truth_pass"])
         out["true_score"] = c.after["truth"]["score"]
     else:
         out["reported_pass"] = False
+        out["with_bias_pass"] = False
         out["true_pass"] = False
     return out
 
@@ -39,6 +42,8 @@ def run(cfg, runs, distance_m, seed0=0) -> dict:
     res = [one_run(cfg, seed0 + i, distance_m) for i in range(runs)]
     rep = np.array([r["reported_pass"] for r in res])
     tru = np.array([r["true_pass"] for r in res])
+    wb = np.array([r["with_bias_pass"] for r in res])
+    ub = np.array([r["u_bias"] for r in res if "u_bias" in r])
     scores = np.array([r["true_score"] for r in res if "true_score" in r])
     times = np.array([r["t"] for r in res if r["state"] == "TRACK"])
     faults = {}
@@ -49,6 +54,9 @@ def run(cfg, runs, distance_m, seed0=0) -> dict:
         "runs": runs, "distance_m": distance_m,
         "reported_pass": float(rep.mean()), "true_pass": float(tru.mean()),
         "false_accept": float((rep & ~tru).mean()),
+        "with_bias_pass": float(wb.mean()),
+        "with_bias_false_accept": float((wb & ~tru).mean()),
+        "u_bias_deg": None if len(ub) == 0 else ub.mean(axis=0).round(4).tolist(),
         "p95_true_score": None if len(scores) == 0 else np.percentile(scores, 95, axis=0).round(4).tolist(),
         "median_time_to_track_s": None if len(times) == 0 else float(np.median(times)),
         "faults": faults,
@@ -68,6 +76,8 @@ def main(argv=None) -> int:
     r = run(cfg, args.runs, args.distance)
     print(f"final design Monte Carlo, {r['runs']} runs at {r['distance_m']} m (SIMULATION, assumed parameters)")
     print(f"  reported pass {r['reported_pass']:.1%} | TRUE pass {r['true_pass']:.1%} | false accepts {r['false_accept']:.1%}")
+    print(f"  pass incl. U_bias {r['with_bias_pass']:.1%} | of all runs, incl. U_bias but truth fails {r['with_bias_false_accept']:.1%}")
+    print(f"  U_bias (k=2) per axis (eh_az, eh_el, er_az, er_el): {r['u_bias_deg']} deg")
     print(f"  p95 true score per axis (eh_az, eh_el, er_az, er_el): {r['p95_true_score']} deg")
     print(f"  median time to TRACK {r['median_time_to_track_s']} s; faults {r['faults']}")
     return 0

@@ -54,6 +54,17 @@ def focused_spot_radius99_mm(launch_radius_mm: float, distance_m: float, wavelen
     return 1.517 * w0 * 1e3
 
 
+def unit_sigmas_deg(cfg: PsdConfig, emitter: str) -> tuple[float, float]:
+    """1-sigma calibration residual of (laser board, PSD-B null), by mounting point.
+
+    The unit on the radar datum carries the datum transfer and the seat; the unit
+    on the horn carries its own axis error (config.yaml psd.calib)."""
+    c = cfg.calib
+    radar_unit = math.hypot(c.radar_datum_sigma_deg, c.radar_seat_sigma_deg)
+    horn_unit = c.horn_axis_sigma_deg
+    return (radar_unit, horn_unit) if emitter == "radar" else (horn_unit, radar_unit)
+
+
 @dataclass
 class Biases:
     """Hidden truth the controller does not know (calibration residuals)."""
