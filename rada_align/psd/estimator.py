@@ -57,7 +57,7 @@ class PsdEstimator:
         diff = cfg.laser.differential_sigma_deg
         pos = cfg.calib.psd_position_sigma_mm
         E = self.estimator4_for(use) if self.roll_from_incl else self.estimator_for(use)
-        z6, z4 = np.zeros(6), np.zeros(4)
+        z6, z4 = self.geo.att0, np.zeros(4)
         r0 = self.geo.readings_vector(z6, z4)
 
         def effect(bias: Biases) -> np.ndarray:

@@ -75,10 +75,13 @@ class Biases:
 
 
 class Geometry:
-    def __init__(self, cfg: PsdConfig, distance_m: float):
+    def __init__(self, cfg: PsdConfig, distance_m: float, height_m: float = 0.0):
+        """`height_m`: radar reference above the horn centre (nominal). The truth
+        gets it from the scenario; the controller's nominal model from its sensors."""
         g = cfg.geometry
         self.cfg = cfg
         self.d = float(distance_m)
+        self.h = float(height_m)
         self.horn_lever = np.array(g.horn_lever_m, dtype=float)
         self.radar_lever = np.array(g.radar_lever_m, dtype=float)
         self.lasers = {"A": g.laser_a_m, "B": g.laser_b_m, "C": g.laser_c_m}
@@ -89,6 +92,20 @@ class Geometry:
         self.spot_r99_mm = focused_spot_radius99_mm(
             cfg.laser.launch_radius_mm, self.d, cfg.laser.wavelength_nm
         )
+        self.att0 = self._aligned_attitude()
+
+    def _aligned_attitude(self) -> np.ndarray:
+        """Attitude (rad) at which both boresights lie on the line of sight for
+        zero setup translation: horn tilted up by the line elevation, radar down."""
+        att = np.zeros(6)
+        if self.h == 0.0:
+            return att
+        z4 = np.zeros(4)
+        for _ in range(40):
+            e = self.errors(att, z4) * DEG
+            att[1] += e[1]
+            att[4] += e[3]
+        return att
 
     # ------------------------------------------------------------ poses
     def poses(self, att, trans):
@@ -96,7 +113,7 @@ class Geometry:
         Rh = Rz(ph) @ Ry(-th) @ Rx(rh)
         Rr = Rz(math.pi + pr) @ Ry(-tr) @ Rx(rr)
         piv_h = np.array([0.0, trans[0], trans[1]])
-        piv_r = np.array([self.d, trans[2], trans[3] - self.radar_lever[2]])
+        piv_r = np.array([self.d, trans[2], self.h + trans[3] - self.radar_lever[2]])
         hc = piv_h + Rh @ self.horn_lever
         ref = piv_r + Rr @ self.radar_lever
         return Rh, Rr, piv_h, hc, ref
@@ -166,21 +183,26 @@ class Geometry:
             "radar_roll": math.degrees(math.asin(Rr[2, 1])),
         }
 
-    def line_elevation_deg(self, trans) -> float:
+    def line_elevation_deg(self, trans, att=None) -> float:
         """Elevation of the horn-centre -> radar-reference line (R3)."""
-        _, _, _, hc, ref = self.poses(np.zeros(6), trans)
+        _, _, _, hc, ref = self.poses(self.att0 if att is None else att, trans)
         v = ref - hc
         return math.degrees(math.atan2(v[2], math.hypot(v[0], v[1])))
 
+    def height_mm(self, trans, att=None) -> float:
+        """Radar reference above the horn centre, in mm (R3 truth)."""
+        _, _, _, hc, ref = self.poses(self.att0 if att is None else att, trans)
+        return float(ref[2] - hc[2]) * 1e3
+
     # ------------------------------------------------------------ linearisation
     def jacobians(self, eps: float = 1e-7) -> dict:
-        """Linear maps at the nominal aligned state, used by the estimator/controller.
+        """Linear maps at the nominal aligned state (att0), used by the estimator/controller.
 
         G:  readings (mm) per error (deg), 6 x 5
         E:  least-squares estimator, errors = E @ readings, 5 x 6
         Jj: d[errors, radar level roll]/d(servo angles in deg), 6 x 6
         """
-        s0 = np.zeros(10)
+        s0 = np.concatenate([self.att0, np.zeros(4)])
 
         def rd(s):
             return self.readings_vector(s[:6], s[6:])

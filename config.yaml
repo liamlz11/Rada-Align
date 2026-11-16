@@ -137,6 +137,8 @@ psd:
     setup_pointing_deg: 1.0            # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per servo axis)
     setup_roll_deg: 0.5                # ASSUMPTION - replace with datasheet/measurement
     setup_offset_m: 0.25               # ASSUMPTION - replace with datasheet/measurement (relative horn position, uniform +/-, field)
+    radar_height_m: 0.60               # DESIGN (Liam, 2026-11-16, demo scenario): radar reference above the horn centre, field; R3 reports it
+    radar_height_short_m: 0.10         # DESIGN (demo scenario): same, tabletop, used when d <= 3 m
     setup_offset_short_m: 0.05         # ASSUMPTION - replace with datasheet/measurement (same, tabletop, used when d <= 3 m)
   sensor:
     ac_size_mm: 20.0                   # ASSUMPTION - replace with datasheet/measurement (field option, OSI DL-20 class [vendor page]; S5991-01 is 9)

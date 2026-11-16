@@ -43,6 +43,7 @@ class PsdSession:
         self.ac_size_mm = cfg.sensor.ac_size_mm
         self.wind_scale = 1.0
         self.ideal_calib = False
+        self.height_m: float | None = None  # None = scenario default from config
         self._lock = threading.Lock()
         self._messages: deque[dict] = deque(maxlen=100)
         self._seq = 0
@@ -54,7 +55,7 @@ class PsdSession:
         cfg = self.base_cfg
         if self.ideal_calib:  # calibration residuals off, every other source on
             cfg = quiet(cfg, tuple(k for k in ERROR_SOURCES if k not in ('laser', 'calib')))
-        self.world = World(cfg, self.seed, self.distance_m)
+        self.world = World(cfg, self.seed, self.distance_m, height_m=self.height_m)
         self.world.ac_size_mm = self.ac_size_mm
         self.world.wind_scale = self.wind_scale
         self.ctrl = PsdController(self.world)
@@ -75,6 +76,9 @@ class PsdSession:
                 self._build()
             elif name == "distance":
                 self.distance_m = float(np.clip(float(value), 1.0, 20.0))
+                self._build()
+            elif name == "height":
+                self.height_m = float(np.clip(float(value), -2.0, 2.0))
                 self._build()
             elif name == "psd_size":
                 self.ac_size_mm = float(value)
@@ -148,6 +152,15 @@ class PsdSession:
     def seq(self) -> int:
         return self._seq
 
+    def _height_mm(self, inc: dict) -> float:
+        """R3: radar reference above the horn centre, from the measured range and
+        the two inclinometer tilts, each corrected by the PSD elevation error."""
+        e = self.ctrl.est if self.ctrl.est is not None else np.zeros(5)
+        elev = 0.5 * ((inc["horn_tilt"] + e[1]) + (-inc["radar_tilt"] - e[3]))
+        geo = self.world.geo  # horn centre and radar reference sit ahead of their pivots
+        base = self.world.read_range() - geo.horn_lever[0] - geo.radar_lever[0]
+        return base * np.tan(np.radians(elev)) * 1e3
+
     # --------------------------------------------------------------- message
     def _publish(self) -> dict:
         w, c = self.world, self.ctrl
@@ -208,13 +221,13 @@ class PsdSession:
                         "braked": s.braked, "moving": s.moving, "travel": s.travel}
                        for n, s in zip(SERVO_NAMES, w.servos)],
             "incl": {k: _f(v, 4) for k, v in inc.items()},
-            "dh_mm": _f(geo.d * np.tan(np.radians(inc["radar_tilt"])) * 1e3, 1),
-            "dh_true_mm": _f(geo.d * np.tan(np.radians(geo.line_elevation_deg(w.trans))) * 1e3, 1),
+            "dh_mm": _f(self._height_mm(inc), 1),
+            "dh_true_mm": _f(geo.height_mm(w.trans, w.attitude()), 1),
             "scan": {"info": c.scan_info, "path": [list(p) for p in c.scan_path[-1500::6]],
                      "pos": [_f(w.servos[0].encoder, 4), _f(w.servos[1].encoder, 4)]},
             "emitter": geo.emitter,
             "pose": {"emitter": geo.emitter, "att_deg": _vec(w.attitude_deg(), 4), "trans_m": _vec(w.trans, 4),
-                     "horn_lever_m": list(geo.horn_lever), "radar_lever_m": list(geo.radar_lever),
+                     "height_m": geo.h, "horn_lever_m": list(geo.horn_lever), "radar_lever_m": list(geo.radar_lever),
                      "lasers_m": {k: list(v) for k, v in geo.lasers.items()}},
             "events": [list(e) for e in new_events],
         }

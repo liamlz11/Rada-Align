@@ -27,10 +27,11 @@ def run(world, ctrl, seconds, stop_state=None):
     return ctrl.state
 
 
-@pytest.mark.parametrize("d", [2.0, 12.0])
-def test_readings_zero_when_aligned_and_rank_5(d):
-    geo = Geometry(CFG, d)
-    assert np.abs(geo.readings_vector(np.zeros(6), np.zeros(4))).max() < 1e-9
+@pytest.mark.parametrize("d,h", [(2.0, 0.0), (12.0, 0.0), (2.0, 0.3), (12.0, 1.0), (12.0, -0.6)])
+def test_readings_zero_when_aligned_and_rank_5(d, h):
+    geo = Geometry(CFG, d, h)
+    assert np.abs(geo.errors(geo.att0, np.zeros(4))[:4]).max() < 1e-9  # att0 is the aligned state
+    assert np.abs(geo.readings_vector(geo.att0, np.zeros(4))).max() < 1e-9
     lin = geo.jacobians()
     sv = np.linalg.svd(lin["Jm"], compute_uv=False)
     assert int((sv > sv[0] * 1e-9).sum()) == 5
@@ -51,7 +52,7 @@ def test_lasers_on_radar_a_reads_radar_error_b_ignores_translation():
 
 
 def test_spot_off_the_psd_is_invalid_and_partial_is_detected_only():
-    w = World(QUIET, 0, 12.0)
+    w = World(QUIET, 0, 12.0, height_m=0.0)
     w.base[:] = 0
     w.trans[:] = 0
     half = w.ac_size_mm / 2
@@ -70,8 +71,24 @@ def test_zero_noise_run_reaches_track_with_small_true_error(d, seed, emitter):
     c = PsdController(w)
     c.start()
     assert run(w, c, 60, "TRACK") == "TRACK"
-    assert np.abs(w.true_errors()[:4]).max() < 0.005
+    # ALIGN stops inside the deadband; the nominal model takes the height from the
+    # inclinometers at the hand-aimed pose, so one step can leave a few millidegrees
+    assert np.abs(w.true_errors()[:4]).max() < CFG.control.deadband_deg
     assert c.after["truth_pass"]
+
+
+@pytest.mark.parametrize("h", [0.6, -0.4])
+def test_height_difference_is_aligned_and_reported_with_the_right_sign(h):
+    """R3: radar higher than the horn -> positive height, from the inclinometers."""
+    w = World(QUIET, 3, 12.0, height_m=h)
+    s = PsdSession.__new__(PsdSession)
+    c = PsdController(w)
+    c.start()
+    assert run(w, c, 60, "TRACK") == "TRACK"
+    s.world, s.ctrl = w, c
+    true_mm = w.geo.height_mm(w.trans, w.attitude())
+    assert true_mm == pytest.approx(h * 1e3, abs=260)  # scenario height + the +/-0.25 m setup offset
+    assert s._height_mm(w.read_inclinometers()) == pytest.approx(true_mm, abs=5.0)
 
 
 def test_radar_is_braked_in_track_and_moves_only_in_a_gap():

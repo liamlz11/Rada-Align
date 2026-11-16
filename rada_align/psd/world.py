@@ -74,11 +74,14 @@ def _fraction_1d(c: float, half: float, sigma: float) -> float:
 
 class World:
     def __init__(self, cfg: PsdConfig, seed: int = 0, distance_m: float = 12.0,
-                 calibration_loaded: bool = True):
+                 calibration_loaded: bool = True, height_m: float | None = None):
         self.cfg = cfg
         self.seed = seed
         self.rng = np.random.default_rng(seed)
-        self.geo = Geometry(cfg, distance_m)
+        if height_m is None:  # scenario default: the radar stands higher than the horn
+            g = cfg.geometry
+            height_m = g.radar_height_short_m if distance_m <= 3.0 else g.radar_height_m
+        self.geo = Geometry(cfg, distance_m, height_m)
         self.t = 0.0
         self.calibration_loaded = calibration_loaded
         self.servos = [Servo(n, cfg) for n in SERVO_NAMES]
@@ -91,8 +94,11 @@ class World:
     def _setup(self) -> None:
         g, rng = self.cfg.geometry, self.rng
         p, r = g.setup_pointing_deg, g.setup_roll_deg
-        self.base = np.array([rng.uniform(-p, p), rng.uniform(-p, p), rng.uniform(-r, r),
-                              rng.uniform(-p, p), rng.uniform(-p, p), rng.uniform(-r, r)])
+        # manual setup: each side is aimed by hand at the other one (so along the
+        # sloped line of sight when the heights differ), within +/- p
+        self.base = np.degrees(self.geo.att0) + np.array(
+            [rng.uniform(-p, p), rng.uniform(-p, p), rng.uniform(-r, r),
+             rng.uniform(-p, p), rng.uniform(-p, p), rng.uniform(-r, r)])
         off = g.setup_offset_short_m if self.geo.d <= 3.0 else g.setup_offset_m
         self.trans = np.array([rng.uniform(-off, off), rng.uniform(-off, off), 0.0, 0.0])
         lz = self.cfg.laser

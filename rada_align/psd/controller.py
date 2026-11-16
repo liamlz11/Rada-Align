@@ -157,8 +157,14 @@ class PsdController:
             return
         if self._t_state >= 0.3:
             d = self.w.read_range()
-            self.est_model = PsdEstimator(Geometry(self.cfg, d))
-            self._log(f"calibration loaded; range {d:.2f} m")
+            # height difference from the two inclinometers (both sides are aimed
+            # roughly at each other), not from any scenario value
+            inc = self.w.read_inclinometers()
+            g = self.cfg.geometry
+            h = (d - g.horn_lever_m[0] - g.radar_lever_m[0]) * math.tan(
+                math.radians(0.5 * (inc["horn_tilt"] - inc["radar_tilt"])))
+            self.est_model = PsdEstimator(Geometry(self.cfg, d, h))
+            self._log(f"calibration loaded; range {d:.2f} m, height difference about {h * 1e3:+.0f} mm")
             self._goto("SETUP", "level rolls")
 
     def _s_setup(self, psd) -> None:

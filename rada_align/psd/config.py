@@ -22,6 +22,8 @@ class GeometryCfg:
     setup_roll_deg: float
     setup_offset_m: float
     setup_offset_short_m: float
+    radar_height_m: float
+    radar_height_short_m: float
 
 
 @dataclass(frozen=True)
