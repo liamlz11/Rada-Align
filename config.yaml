@@ -9,8 +9,11 @@
 
 mode: sim  # sim | hw
 
+# Radar (mentor, 2026-11-16): 35 kg, 4-8 GHz, aligned once before the test and
+# static during it; the system aligns it by moving the horn. The +/-1 deg
+# manual setup error below is still our ASSUMPTION (OPEN_QUESTIONS Q19).
 geometry:
-  distance_m: 12.0                 # ASSUMPTION - replace with datasheet/measurement (challenge: 10-15 m)
+  distance_m: 12.0                # ASSUMPTION - replace with datasheet/measurement (challenge: 10-15 m)
   tolerance_deg: 0.05              # REQUIREMENT R7
   initial_pointing_error_deg: 1.0  # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per axis, radar and horn)
   initial_roll_deg: 0.5            # ASSUMPTION - replace with datasheet/measurement (spirit-level setup, uniform +/-)
@@ -67,6 +70,9 @@ rangefinder:
   bias_sigma_m: 0.05               # ASSUMPTION - replace with datasheet/measurement (CHALLENGE.md: +/-5 cm)
   noise_m: 0.01                    # ASSUMPTION - replace with datasheet/measurement (per sample)
 
+# Travel: +/-250 mm covers 1.19 deg at 12 m and 0.95 deg at 15 m; the field
+# mount needs about +/-400 mm (docs/TASKS.md task 3). Kept at 250 here to match
+# the 2 m demo rig and firmware/include/config.h.
 actuators:  # x, z in mm; pan, tilt in deg; max_speed per second
   x:    {step: 0.0025,   backlash: 0.05, max_speed: 20.0, min: -250.0, max: 250.0}  # ASSUMPTION - replace with datasheet/measurement (8 mm lead screw, 200 x 16 microsteps)
   z:    {step: 0.0025,   backlash: 0.05, max_speed: 20.0, min: -250.0, max: 250.0}  # ASSUMPTION - replace with datasheet/measurement

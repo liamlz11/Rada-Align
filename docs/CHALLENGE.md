@@ -90,6 +90,22 @@ Conclusion: sensors are not the problem. Transferring the radar's mechanical ref
 4. Operator UI: before/after error, live state, ALIGNED indicator, log and report.
 
 Which side moves: Option A (chosen) radar fixed, horn moves X/Z onto the radar axis then Pan/Tilt back; +/-1 deg at 12 m = +/-21 cm, so ~+/-25 cm travel. Option B: radar on a motorized Az/El positioner if RADA has one.
+Confirmed by the mentor (2026-11-16): the radar is aligned once before the test and is static during it, so Option A holds. No positioner was mentioned. Travel check: +/-250 mm covers 1.43 deg at 10 m, 1.19 deg at 12 m, 0.95 deg at 15 m; a 1 deg error at 15 m needs 262 mm, so the field mount needs about +/-400 mm (1.53 deg at 15 m). Option B stays a field option within the budget (ASSUMPTION).
+
+### Mentor facts (2026-11-16, via Liam; details in docs/MENTOR_FEEDBACK.md)
+- Radar: 35 kg, 4-8 GHz (C-band). Static during the test.
+- "0,0" = the radar's mechanical reference: its face perpendicular to the line of sight to the horn. This is the starting reference of the radar's measurement (our interpretation, medium confidence).
+- Radar data is not needed on our display. The no-radar-data rule is unchanged.
+- Simple sensors (laser, camera, IR, inclinometer) are welcome as backups. Do not rely on GPS or radio.
+- Budget up to USD 30k for the hardware, if justified.
+
+### Target simulator and what alignment guarantees
+The radar transmits; the horn receives and passes the signal by cable to the target simulator, which sends it back through the same horn:
+- Delay = range: R = c*tau/2 (1 us = 150 m). The physical 12 m path adds 80 ns round trip.
+- Frequency shift = Doppler = speed: f_d = 2v/lambda, i.e. 26.7 Hz per m/s at 4 GHz, 53.3 Hz per m/s at 8 GHz.
+- Amplitude = RCS.
+- Angle: NOT set by the simulator. The radar sees the target where the horn physically is.
+Delay, Doppler, amplitude and cable losses are DRS's. The angle is ours: alignment guarantees the simulated target appears at Az = 0, El = 0 relative to the radar's mechanical axis within +/-0.05 deg. Radar error moves the reported angle; horn pointing error changes only the returned power.
 
 Calibration of camera to radar axis: reversal method (rotate the fixture 180 deg about the reference axis, the mean is the true axis), or a one-time lab calibration against a theodolite/collimator. Lab calibration does not violate R8.
 
@@ -131,3 +147,7 @@ Do NOT use hobby servos (SG90/MG996): resolution ~1 deg, 20x the budget.
 | Sunlight saturation | IR + band-pass + frame differencing |
 | Metal parts near antennas | heads outside aperture or removable after alignment |
 | Demo fails on judging day | simulator ready as backup + recorded video |
+| Heat: sun on brackets and tripod legs | 5 K across the head bracket = 0.013 deg; 10 K on a 1 m aluminium leg over a 1 m base = 0.013 deg (arith); shade, low-expansion parts, reversal after warm-up |
+| Ground vibration (generators, vehicles) | 10 Hz camera aliases motion above 5 Hz into slow apparent motion; faster global-shutter camera or short exposure; measure |
+| Dust on lenses | asymmetric spot biases the centroid; lens covers, watch blob circularity over time |
+| Radio near a C-band radar | 5 GHz WiFi is inside 4-8 GHz; all links cabled |

@@ -53,6 +53,12 @@ Write docs/RIG.md:
 2. Angular resolution of each motorized axis with these parts, and whether it is good enough for 0.05 deg at the demo distance.
 3. Field-version bill of materials: part, role, the spec that matters for 0.05 deg, approximate price, datasheet link (use web search). Mark any spec not confirmed on a datasheet as [unverified].
 Copy the real values into config.yaml, still marked with their source.
+Added from mentor feedback (2026-11-16, docs/MENTOR_FEEDBACK.md):
+4. Field BOM within the USD 30k budget, ordered by which error-budget row each item reduces (datum seat, wind, thermal, camera rate/FOV, ground-truth instrument). Prices from datasheets or vendor pages only.
+5. Field X/Z travel about +/-400 mm (1 deg at 15 m needs 262 mm; +/-250 mm covers 0.95 deg). The 2 m demo rig keeps its travel (+/-250 mm covers 7.13 deg at 2 m).
+6. Radar positioner (35 kg) as a priced field option only.
+7. Cabled links between both heads and the computer; no WiFi or other radio near the radar (4-8 GHz).
+8. Backup sensors (laser + PSD, inclinometer El check) as options with their role.
 
 ## 4. Camera beacon detection
 rada_align/vision/, implementing Camera:
@@ -64,6 +70,8 @@ rada_align/vision/, implementing Camera:
 Tests on synthetic images: Gaussian spot at a known subpixel position recovered within 0.05 px with noise; two spots rejected; saturated spot flagged.
 Must run from native Windows Python (WSL2 has no webcam access by default). Tell me exactly how to run it there.
 Report the measured sigma.
+6. KLT tracking layer (cv2.calcOpticalFlowPyrLK, behind a `vision.tracker` flag, default none): ROI prediction and the head's own motion from background features. The centroid stays the measurement until scripts/compare_trackers.py compares both on the same real frames against ground truth (micrometer table). Synthetic check so far: KLT matches the centroid in noise, worse on a 1.2 px spot (docs/MENTOR_FEEDBACK.md 4.3). Ask for the friend's KLT data first.
+7. Lens choice: FOV vs resolution table in docs/MENTOR_FEEDBACK.md; consider a wide acquisition camera plus a narrow measuring camera.
 
 ## 5. Camera-to-datum calibration
 1. docs/CALIBRATION.md: reversal method (measure a distant target, rotate the head 180 deg about the datum axis, measure again; mean = true axis, half difference = camera offset delta) and ground-truth method (known offsets on a ruler/micrometer table at known distance), with distances and repetitions. The reversal is done on EVERY setup, not once in the lab (REVIEW W1).
@@ -97,6 +105,7 @@ Done when `python -m rada_align.ui` runs against the simulator and the page was 
 2. Tabletop distance 2 m (Liam, 2026-11-14), same angular tolerance.
 3. Dry-run mode: compute and display corrections without moving motors.
 4. Per-run logging to runs/<timestamp>/ (JSONL measurements, commands, state changes) + HTML report (before/after per axis, sigma, pass/fail).
+5. Dashboard additions for the field engineer (mentor point 6; no radar data, mentor answer 2026-11-16): SIM/LIVE tag per sensor; sensor health (camera rate, latency, peak/saturation, circularity, blob count; inclinometer reading; range; ESP32 watchdog/e-stop/limits); environment (sigma per head, drift rate, time since last correction, corrections count, reversal done this setup yes/no); alerts for saturation, sensor fell back to SIM, axis near travel limit, no reversal this setup. Schema in docs/messages.md.
 STOP before the first real motor motion: show soft limits, max speeds, e-stop status, wait for my explicit OK.
 Done when one ACQUIRE -> ALIGN -> VERIFY -> TRACK cycle runs on the real rig, or report exactly which step fails and why.
 
@@ -109,10 +118,12 @@ Runnable in sim and hw mode, scripts/validate/, each writes results/<test>.json:
 5. Disturbance: push or fan during TRACK -> detected, corrected or warned.
 6. Independence: full run with no radar connected.
 7. Lighting: strong light behind the beacon -> beacon still acquired.
+8. Field conditions (mentor point 3): midday outdoor run (heat shimmer), fan on the tripods (wind), a vibration source near the tripod -> sigma per axis and whether the system warns or faults.
 `python -m rada_align.validate --report` builds results/REQUIREMENTS.md: R1-R11 table with status, measured number, evidence file, plus pitch-ready plots.
 Targets are fixed. NEVER change a threshold to make a test pass.
 
 ## 10. Update from mentor answers
+Started 2026-11-16: first mentor feedback and answers, gap analysis and applied changes are in docs/MENTOR_FEEDBACK.md (Liam approved "Yes, apply"). Remaining: the error-budget update with arithmetic once field numbers exist.
 When docs/OPEN_QUESTIONS.md has answers: write docs/DECISIONS.md with (1) which design decisions change, (2) the updated error budget with arithmetic, (3) proposed CLAUDE.md edits as a diff, (4) tasks to cut, add or reorder for the time left. Wait for my OK before applying.
 
 ## 11. Pitch deck content

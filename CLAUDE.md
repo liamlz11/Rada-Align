@@ -2,7 +2,7 @@
 
 ## Goal
 Autonomous system that aligns a horn antenna to a radar in a field test: residual error <= +/-0.05 deg in azimuth AND elevation, without using any radar data.
-Full challenge summary: docs/CHALLENGE.md. Original slides: docs/slides/. Original Hebrew docs (challenge summary, prompt pack): docs/reference/.
+Full challenge summary: docs/CHALLENGE.md. Mentor feedback and gap analysis: docs/MENTOR_FEEDBACK.md. Original slides: docs/slides/. Original Hebrew docs (challenge summary, prompt pack): docs/reference/.
 
 ## Key numbers
 - Distance 10-15 m. 0.05 deg = 873 urad = 10.47 mm at 12 m (d*tan(theta)). Tabletop demo at 2 m: 1.75 mm.
@@ -15,7 +15,9 @@ R1 autonomous detection of Az/El errors | R2 measure orientation of radar AND ho
 
 ## Architecture (decided)
 - Mutual sighting: each side has camera + IR LED beacon + dual-axis inclinometer. The radar-side head clamps to the radar mechanical datum, outside the RF aperture.
-- Radar stays fixed. Horn on a motorized mount: X, Z, Pan, Tilt (steppers + worm gear, ESP32).
+- Radar is set up manually and stays static during the test; it is aligned once, before the test (mentor, 2026-11-16). The system aligns it by moving the horn onto the radar's mechanical axis ("0,0"). Horn on a motorized mount: X, Z, Pan, Tilt (steppers + worm gear, ESP32). A motorized radar positioner is a field option only (ASSUMPTION, docs/MENTOR_FEEDBACK.md).
+- All links are cabled. No radio near the radar: it works at 4-8 GHz (C-band), which includes 5 GHz WiFi. No GPS.
+- Hardware budget: up to USD 30k for the field system, if justified (mentor, 2026-11-16).
 - Parallax correction is mandatory: eps = atan((u - cx) / f) - delta_calib - s / d.
 - Rig rule: matched offsets. Each beacon mirrors the opposite camera, so the parallax baseline is ~0.
 - State machine: IDLE -> ACQUIRE -> ALIGN -> VERIFY -> TRACK -> FAULT. Correct Z/X first, then Pan/Tilt.
