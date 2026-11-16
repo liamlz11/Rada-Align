@@ -186,7 +186,9 @@ Reading: rain costs samples (a drop on a window drops them), not accuracy; the p
 | roll from PSD A/C | 91.5 % | 35.0 % | 56.5 % | 15 |
 | roll from inclinometers (chosen) | 88.0 % | 44.0 % | 44.0 % | 21 |
 
-Reading: the inclinometer roll trades about 3.5 points of reported pass (6 more faults) for 9 points of TRUE pass and 12.5 fewer points of false accepts. The extra faults are not diagnosed: the fault says the spot leaves the 20 mm PSD too often under the assumed wind, and why the inclinometer roll makes that more frequent is open. 200 runs give about +/-2 points of binomial noise, so part of the gap may be noise.
+Reading: the changes since that run (units below, 0.60 m height, amplitude gate; not separated) together add 5 faults. The inclinometer roll then trades about 3.5 points of reported pass (6 more faults) for 9 points of TRUE pass and 12.5 fewer points of false accepts. Why the faults rise is not diagnosed (the fault means too many samples were not valid in the VERIFY window; the PSD edge, the gate or both). Binomial noise at 200 runs is about +/-2 points (1 sigma) on the reported pass and +/-3.5 points on the TRUE pass, so the TRUE gain is suggestive, not firm.
+
+Edge clips in TRACK [sim, pre-existing]: in clear weather at 12 m the braked radar sways 0.05-0.09 deg under the assumed wind, and the spot leaves the 20 mm PSD-A (+/-0.048 deg) for one or two samples, 3-90 times a minute (10 seeds; the same before today's changes). Rain does not cause them. The controller bridges them with KLT as before; the log now counts losses shorter than `control.short_loss_s` and prints one summary line per `short_loss_summary_s` instead of one "beam back" line each. This is the field-PSD-size question (section 7.1).
 
 ## 1. The design, D1-D12
 

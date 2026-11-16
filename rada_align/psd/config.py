@@ -125,6 +125,8 @@ class ControlCfg:
     min_valid_fraction: float
     scan_sigmas: float
     beam_lost_s: float
+    short_loss_s: float
+    short_loss_summary_s: float
 
 
 @dataclass(frozen=True)

@@ -213,3 +213,5 @@ psd:
     min_valid_fraction: 0.9            # DESIGN: VERIFY fails if fewer samples have the spot fully on the PSD
     scan_sigmas: 3.0                   # DESIGN: raster half-window = scan_sigmas * camera.acquire_sigma_deg
     beam_lost_s: 1.0                   # DESIGN: longer beam loss in TRACK -> SCAN (shorter: KLT bridge)
+    short_loss_s: 0.1                  # DESIGN (log only): PSD-A losses shorter than this are edge clips, counted, not logged one by one
+    short_loss_summary_s: 10.0         # DESIGN (log only): one summary line of the edge clips per this period

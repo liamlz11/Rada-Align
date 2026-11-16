@@ -48,6 +48,8 @@ class PsdController:
         self.alerts: list[str] = []
         self.corrections = 0
         self.klt_bridge = False
+        self.edge_clips = 0  # short PSD-A losses in TRACK (log summary only)
+        self._clip_t0: float | None = None
         self.scan_path: list[tuple[float, float]] = []
         self.scan_info: dict = {}
         self._reset_buffers()
@@ -402,8 +404,17 @@ class PsdController:
                 self._start_scan()
             return
         if self.klt_bridge:
-            self._log(f"beam back after {self._lost_t:.2f} s (KLT bridged the {self.E_NAME} pointing)")
+            if self._lost_t >= self.c.short_loss_s:
+                self._log(f"beam back after {self._lost_t:.2f} s (KLT bridged the {self.E_NAME} pointing)")
+            else:  # a sample or two off the PSD edge: count it, summarise below
+                self.edge_clips += 1
+                if self._clip_t0 is None:
+                    self._clip_t0 = self.w.t
             self.alerts = [a for a in self.alerts if not a.startswith("beam lost")]
+        if self._clip_t0 is not None and self.w.t - self._clip_t0 >= self.c.short_loss_summary_s:
+            self._log(f"spot left the PSD-A edge {self.edge_clips} times in the last "
+                      f"{self.w.t - self._clip_t0:.0f} s, each < {self.c.short_loss_s:.1f} s (KLT bridged)")
+            self.edge_clips, self._clip_t0 = 0, None
         self.klt_bridge = False
         self._lost_t = 0.0
         ok, e = self._sample_errors(psd)

@@ -221,3 +221,22 @@ def test_light_rain_run_holds_track_without_alerts_from_dips():
     assert run(w, c, 60, "TRACK") == "TRACK"
     run(w, c, 60)
     assert c.state == "TRACK" and not any(a.startswith("radar moved") for a in c.alerts)
+
+
+def test_short_psd_a_edge_clips_are_summarised_not_logged_one_by_one():
+    # seed 5 at 12 m: the braked radar sways and the spot clips the PSD-A edge often in TRACK
+    w = World(CFG, 5, 12.0)
+    c = PsdController(w)
+    c.start()
+    while w.t < 120 and c.state not in ("TRACK", "FAULT"):
+        c.tick(); w.step(c.dt)
+    assert c.state == "TRACK"
+    e0 = len(c.events)
+    end = w.t + 30
+    while w.t < end:
+        c.tick(); w.step(c.dt)
+    new = [t for _, t in c.events[e0:]]
+    short = [t for t in new if t.startswith("beam back after")
+             and float(t.split()[3]) < CFG.control.short_loss_s]
+    assert short == []
+    assert any(t.startswith("spot left the PSD-A edge") for t in new)
