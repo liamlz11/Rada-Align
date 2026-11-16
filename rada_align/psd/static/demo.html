@@ -178,7 +178,7 @@ td.num{text-align:end}
     </div>
     <div class="wx" id="wx"></div>
     <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div></div>
-    <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.</div>
+    <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.<br>גרירה: סיבוב · Ctrl+גלגלת: זום</div>
     <div class="pipeline" id="pipeline"></div>
   </section>
 
@@ -325,11 +325,18 @@ const cam = new THREE.PerspectiveCamera(38, 1, 0.05, 100);
 cam.position.set(2.2, 2.7, 6.0);
 const orbit = new OrbitControls(cam, canvas);
 orbit.target.set(2.5, 1.05, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI*0.49;
+// Keep the rig in view: a plain wheel scrolls the page (it used to zoom the camera
+// away from the horn and the radar); Ctrl/Cmd + wheel zooms, within limits.
+orbit.minDistance = 0.8; orbit.maxDistance = 11;
+orbit.enableZoom = false;
+canvas.addEventListener('wheel', e => { orbit.enableZoom = e.ctrlKey || e.metaKey }, {capture:true});
 scene.add(new THREE.HemisphereLight(0x9fb7c9, 0x1a2430, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1d6, 1.4); sun.position.set(3,6,4); scene.add(sun);
 const grid = new THREE.GridHelper(30, 60, 0x2c4052, 0x1c2b38); scene.add(grid);
 
 const DS = 5.0;            // scene distance between the pivots (compressed)
+// a right-drag pan may not carry the orbit centre off the rig
+const TARGET_MIN = new THREE.Vector3(-1, 0.2, -2), TARGET_MAX = new THREE.Vector3(DS + 1, 2.5, 2);
 const PED = 1.15;          // pedestal height in the scene
 const matMetal = new THREE.MeshStandardMaterial({color:0x5d6f7d, metalness:.6, roughness:.45});
 const matDark  = new THREE.MeshStandardMaterial({color:0x2a3946, metalness:.4, roughness:.6});
@@ -559,7 +566,7 @@ function resize(){
   renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
-function loop(){ stepTween(); stepRain(); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
+function loop(){ stepTween(); stepRain(); orbit.target.clamp(TARGET_MIN, TARGET_MAX); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
 // ------------------------------------------------------------------ 2D canvases
