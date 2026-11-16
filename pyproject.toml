@@ -27,6 +27,7 @@ include = ["rada_align*"]
 
 [tool.setuptools.package-data]
 "rada_align.ui" = ["static/*"]
+"rada_align.psd" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

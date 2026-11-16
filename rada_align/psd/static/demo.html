@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RADA-Align · סימולציית התכנון הסופי</title>
+<!--
+  Design notes (final-design demo, three.js r160 from jsDelivr, approved 2026-11-16):
+  palette "range at dusk": slate field, instrument-panel surfaces, survey-yellow for
+  "aligned", infrared magenta for the (invisible in reality) 960 nm beams, signal red
+  for out of tolerance, ice cyan for truth. One bold element: the 3D range scene.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+:root{
+  --field:#121c26; --panel:#192734; --panel-2:#1f3040; --rule:#2c4052;
+  --ink:#e6edf2; --ink-2:#9db0bf; --ink-3:#6b8193;
+  --ir:#ff3d8b; --ir-dim:#7a2a4d; --survey:#f2c14e; --signal:#e5533d; --truth:#8fe3ef; --ok:#7fd18b;
+  --r-lg:14px; --r-sm:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--field);color:var(--ink);
+  font-family:"IBM Plex Sans Hebrew",system-ui,sans-serif;font-size:15px;line-height:1.45}
+.num,.ltr{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--survey);outline-offset:2px}
+
+header{display:flex;align-items:center;gap:20px;padding:14px 22px;border-bottom:1px solid var(--rule)}
+.brand{font-weight:700;font-size:1.25rem;letter-spacing:.01em}
+.brand small{display:block;font-weight:400;font-size:.82rem;color:var(--ink-2)}
+.simtag{border:1px solid var(--ir);color:var(--ir);border-radius:999px;padding:2px 12px;font-size:.8rem}
+header .spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:var(--r-sm);overflow:hidden}
+.seg button{background:transparent;border:0;padding:6px 12px;cursor:pointer;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink)}
+.ctl-label{color:var(--ink-3);font-size:.8rem;margin-inline-end:6px}
+
+main{padding:16px 22px 28px;display:grid;gap:16px;
+  grid-template-columns:minmax(0,1fr) 360px}
+@media (max-width:1100px){main{grid-template-columns:1fr}}
+
+.stage{position:relative;border-radius:var(--r-lg);overflow:hidden;background:#0f1922;min-height:520px;border:1px solid var(--rule)}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;pointer-events:none}
+.tag3d{position:absolute;transform:translate(-50%,-100%);font-size:.85rem;color:var(--ink-2);white-space:nowrap}
+.verdict{position:absolute;top:16px;inset-inline-start:18px;pointer-events:none;max-width:60%}
+.verdict .big{font-size:2.3rem;font-weight:700;line-height:1.1}
+.verdict .why{color:var(--ink-2);margin-top:4px}
+.verdict.aligned .big{color:var(--survey)}
+.verdict.fault .big{color:var(--signal)}
+.scale-note{position:absolute;bottom:64px;inset-inline-end:16px;color:var(--ink-3);font-size:.78rem;text-align:end}
+.exag{position:absolute;top:16px;inset-inline-end:16px;pointer-events:auto;background:rgba(18,28,38,.8);
+  border:1px solid var(--rule);border-radius:var(--r-sm);padding:6px 10px;font-size:.8rem;color:var(--ink-2)}
+.exag input{vertical-align:middle;width:110px}
+
+.pipeline{position:absolute;inset-inline:0;bottom:0;display:flex;gap:2px;padding:10px 12px;
+  background:linear-gradient(transparent,rgba(10,16,22,.92) 40%)}
+.pipeline .st{flex:1;text-align:center;padding:6px 2px 4px;border-top:3px solid var(--rule);color:var(--ink-3);font-size:.86rem}
+.pipeline .st b{display:block;font-weight:500;color:inherit}
+.pipeline .st span{font-size:.7rem;letter-spacing:.04em}
+.pipeline .st.done{border-color:var(--ink-3);color:var(--ink-2)}
+.pipeline .st.now{border-color:var(--survey);color:var(--ink)}
+.pipeline .st.now.fault{border-color:var(--signal)}
+.pipeline .sub{position:absolute;bottom:52px;inset-inline-start:18px;color:var(--ink-2);font-size:.85rem}
+
+aside{display:flex;flex-direction:column;gap:10px}
+.psd{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);padding:10px 12px;display:grid;
+  grid-template-columns:132px 1fr;gap:12px;align-items:center}
+.psd canvas{width:132px;height:132px;display:block}
+.psd h3{margin:0;font-size:1rem;font-weight:500}
+.psd p{margin:2px 0;color:var(--ink-2);font-size:.82rem}
+.psd .read{font-size:1.05rem;margin-top:6px}
+.pill{display:inline-block;border-radius:999px;padding:0 8px;font-size:.75rem;border:1px solid var(--rule);color:var(--ink-3)}
+.pill.on{border-color:var(--ir);color:var(--ir)}
+.pill.valid{border-color:var(--ok);color:var(--ok)}
+
+.row{display:grid;gap:16px;grid-column:1/-1;grid-template-columns:1.1fr 1.3fr 1fr}
+@media (max-width:1100px){.row{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);padding:14px 16px}
+.card h2{margin:0 0 10px;font-size:1.02rem;font-weight:500}
+.card h2 small{color:var(--ink-3);font-weight:400;margin-inline-start:6px}
+.errs{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 14px;align-items:baseline}
+.errs .h{color:var(--ink-3);font-size:.8rem}
+.errs .v{font-size:1.5rem;font-weight:500}
+.errs .t{color:var(--truth);font-size:.85rem}
+.v.bad{color:var(--signal)} .v.good{color:var(--ink)}
+.score{margin-top:10px;color:var(--ink-2);font-size:.86rem}
+.score .ok{color:var(--survey)} .score .no{color:var(--signal)}
+canvas.plot{width:100%;display:block}
+#bull{height:260px} #chart{height:230px} #raster{height:200px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink-3);font-size:.78rem;margin-top:6px}
+.legend i{display:inline-block;width:14px;height:3px;margin-inline-end:5px;vertical-align:middle}
+
+.controls{display:flex;flex-direction:column;gap:12px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{background:var(--panel-2);border:1px solid var(--rule);border-radius:var(--r-sm);padding:8px 14px;cursor:pointer}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--survey);color:#1b1608;border-color:var(--survey);font-weight:700}
+.btn.warn{border-color:var(--ir-dim)}
+.btn[aria-pressed="true"]{border-color:var(--survey);color:var(--survey)}
+.ctlrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ctlrow input[type=range]{flex:1;min-width:120px}
+
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+td,th{padding:3px 6px;text-align:start;border-bottom:1px solid var(--rule)}
+th{color:var(--ink-3);font-weight:400}
+td.num{text-align:end}
+.brake{color:var(--survey)}
+.log{height:210px;overflow:auto;font-size:.82rem;color:var(--ink-2)}
+.log div{padding:2px 0;border-bottom:1px solid rgba(44,64,82,.5)}
+.log .t{color:var(--ink-3);margin-inline-end:8px}
+.alerts{color:var(--signal);font-size:.86rem;min-height:1.2em}
+.facts{color:var(--ink-2);font-size:.82rem;margin-top:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">RADA-Align<small>יישור אוטונומי שופר–מכ"ם: סריקה, PSD ו-KLT</small></div>
+  <span class="simtag">סימולציה · פרמטרים מונחים</span>
+  <div class="spacer"></div>
+  <span class="ctl-label">מרחק</span>
+  <div class="seg" id="dist" role="group" aria-label="מרחק">
+    <button data-v="2">2 מ'</button><button data-v="10">10 מ'</button><button data-v="12">12 מ'</button><button data-v="15">15 מ'</button>
+  </div>
+  <span class="ctl-label">מהירות</span>
+  <div class="seg" id="speed" role="group" aria-label="מהירות">
+    <button data-v="0.5">½×</button><button data-v="1">1×</button><button data-v="2">2×</button><button data-v="4">4×</button>
+  </div>
+</header>
+
+<main>
+  <section class="stage" aria-label="תצוגת השטח">
+    <canvas id="scene"></canvas>
+    <div class="overlay" id="tags"></div>
+    <div class="verdict" id="verdict"><div class="big">ממתין</div><div class="why">לחץ "התחל יישור"</div></div>
+    <label class="exag">הגדלת זוויות ×<span id="exv" class="num">20</span> <input id="exag" type="range" min="1" max="60" value="20"></label>
+    <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח – כאן הן צבועות.</div>
+    <div class="pipeline" id="pipeline"></div>
+  </section>
+
+  <aside aria-label="חיישני PSD">
+    <div class="psd" id="psdA"><canvas width="264" height="264"></canvas><div>
+      <h3>PSD-A <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · שגיאת השופר</p><div class="read num"></div><p class="num sub"></p></div></div>
+    <div class="psd" id="psdB"><canvas width="264" height="264"></canvas><div>
+      <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p>מאחורי עדשה · זווית הקרן → שגיאת המכ"ם</p><div class="read num"></div><p class="num sub"></p></div></div>
+    <div class="psd" id="psdC"><canvas width="264" height="264"></canvas><div>
+      <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · roll יחסי ובדיקה צולבת</p><div class="read num"></div><p class="num sub"></p></div></div>
+  </aside>
+
+  <div class="row">
+    <section class="card" aria-label="שגיאות">
+      <h2>שגיאות מול סף ±0.05°<small>מדווח מה-PSD · אמת בתכלת</small></h2>
+      <div class="errs" id="errs">
+        <span></span><span class="h">אזימוט</span><span class="h">גובה</span>
+        <span>מכ"ם</span><span class="v num" id="er_az">—</span><span class="v num" id="er_el">—</span>
+        <span></span><span class="t num" id="ter_az"></span><span class="t num" id="ter_el"></span>
+        <span>שופר</span><span class="v num" id="eh_az">—</span><span class="v num" id="eh_el">—</span>
+        <span></span><span class="t num" id="teh_az"></span><span class="t num" id="teh_el"></span>
+      </div>
+      <canvas class="plot" id="bull" height="260"></canvas>
+      <div class="score" id="score"></div>
+      <div class="facts" id="facts"></div>
+    </section>
+    <section class="card" aria-label="ציר זמן">
+      <h2>ציר זמן<small>60 שניות אחרונות</small></h2>
+      <canvas class="plot" id="chart" height="230"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--survey)"></i>מכ"ם Az</span><span><i style="background:#e9a23b"></i>מכ"ם El</span>
+        <span><i style="background:var(--ink-2)"></i>שופר Az</span><span><i style="background:#5f7a8f"></i>שופר El</span>
+        <span><i style="background:var(--truth)"></i>אמת מכ"ם Az</span>
+      </div>
+      <h2 style="margin-top:14px">Raster scan<small>Pan/Tilt של השופר</small></h2>
+      <canvas class="plot" id="raster" height="200"></canvas>
+    </section>
+    <section class="card controls" aria-label="שליטה">
+      <h2>שליטה</h2>
+      <div class="btns">
+        <button class="btn primary" id="start">התחל יישור</button>
+        <button class="btn" id="stop">עצור</button>
+        <button class="btn" id="newsetup">הצבה חדשה</button>
+      </div>
+      <h2>הפרעות</h2>
+      <div class="ctlrow"><span class="ctl-label">רוח</span><input id="wind" type="range" min="0" max="3" step="0.25" value="1"><span id="windv" class="num">1×</span></div>
+      <div class="btns">
+        <button class="btn warn" id="knockh">מכה בחצובת השופר</button>
+        <button class="btn warn" id="knockr">מכה בחצובת המכ"ם</button>
+        <button class="btn warn" id="blockS">חסימה קצרה (0.6 ש')</button>
+        <button class="btn warn" id="blockL">חסימה ארוכה (3 ש')</button>
+      </div>
+      <h2>מדיניות ותצורה</h2>
+      <div class="btns">
+        <button class="btn" id="gap" aria-pressed="false">חלון תיקון למכ"ם</button>
+        <button class="btn" id="ideal" aria-pressed="false">כיול אידיאלי</button>
+      </div>
+      <div class="ctlrow"><span class="ctl-label">גודל PSD-A/C</span>
+        <div class="seg" id="psdsize"><button data-v="9">9 מ"מ (S5991-01)</button><button data-v="20">20 מ"מ</button></div></div>
+      <div class="alerts" id="alerts"></div>
+    </section>
+  </div>
+
+  <div class="row">
+    <section class="card" aria-label="סרבו ומדי זווית">
+      <h2>סרבו ומדי זווית<small>אנקודר · יעד · בלם</small></h2>
+      <table id="servos"><thead><tr><th>ציר</th><th>אנקודר °</th><th>יעד °</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="facts" id="incl"></div>
+    </section>
+    <section class="card" aria-label="לפני ואחרי">
+      <h2>לפני ואחרי<small>R5</small></h2>
+      <div id="ba" class="facts" style="font-size:.9rem"></div>
+    </section>
+    <section class="card" aria-label="יומן">
+      <h2>יומן אירועים</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {ir:css('--ir'), irdim:css('--ir-dim'), survey:css('--survey'), signal:css('--signal'),
+  truth:css('--truth'), ink:css('--ink'), ink2:css('--ink-2'), ink3:css('--ink-3'), rule:css('--rule'),
+  panel:css('--panel'), ok:css('--ok'), field:css('--field')};
+const TOL = 0.05;
+const STATE_HE = {IDLE:'המתנה',CALIB:'כיול',SETUP:'הצבה',ACQUIRE:'איתור',SCAN:'סריקה',ALIGN:'יישור',VERIFY:'אימות',TRACK:'מעקב',FAULT:'תקלה'};
+const STATE_WHY = {IDLE:'לחץ "התחל יישור"', CALIB:'טוען קובץ כיול ומודד מרחק', SETUP:'מפלס roll בשני הצדדים לפי מדי הזווית',
+  ACQUIRE:'המצלמה מזהה את יחידת ה-PSD (template matching) ו-KLT ננעל', SCAN:'סריקת raster עם Pan/Tilt של השופר עד שהקרן נתפסת',
+  ALIGN:'PID על כל ציר: השופר מאפס את PSD-A, המכ"ם את PSD-B, roll לפי A ו-C', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
+  TRACK:'השופר מתקן, המכ"ם בבלם ומנוטר', FAULT:''};
+const PIPE = ['CALIB','SETUP','ACQUIRE','SCAN','ALIGN','VERIFY','TRACK'];
+const fmt = (v, n=3) => v==null ? '—' : (v>=0?'+':'') + v.toFixed(n);
+let M = null, hist = [], logN = 0, exag = 20;
+
+// ------------------------------------------------------------------ commands
+async function cmd(name, value=null){
+  await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,value})});
+}
+$('start').onclick=()=>cmd('start');
+$('stop').onclick=()=>cmd('stop');
+$('newsetup').onclick=()=>{hist=[];cmd('new_setup')};
+$('knockh').onclick=()=>cmd('push','horn');
+$('knockr').onclick=()=>cmd('push','radar');
+$('blockS').onclick=()=>cmd('block',0.6);
+$('blockL').onclick=()=>cmd('block',3.0);
+$('gap').onclick=()=>cmd('gap', !(M&&M.radar_gap));
+$('ideal').onclick=()=>{hist=[];cmd('ideal_calib', !(M&&M.ideal_calib))};
+$('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
+$('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
+for (const [id,name] of [['dist','distance'],['speed','speed'],['psdsize','psd_size']])
+  $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{if(name==='distance')hist=[];cmd(name,+b.dataset.v)});
+const pipe = $('pipeline');
+PIPE.forEach(s=>{const d=document.createElement('div');d.className='st';d.dataset.s=s;
+  d.innerHTML=`<b>${STATE_HE[s]}</b><span>${s}</span>`;pipe.appendChild(d)});
+const subEl=document.createElement('div');subEl.className='sub';pipe.appendChild(subEl);
+
+// ------------------------------------------------------------------ 3D scene
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1922);
+scene.fog = new THREE.Fog(0x0f1922, 9, 22);
+const cam = new THREE.PerspectiveCamera(38, 1, 0.05, 100);
+cam.position.set(2.3, 2.6, 4.6);
+const orbit = new OrbitControls(cam, canvas);
+orbit.target.set(2.5, 1.0, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI*0.49;
+scene.add(new THREE.HemisphereLight(0x9fb7c9, 0x1a2430, 1.1));
+const sun = new THREE.DirectionalLight(0xfff1d6, 1.4); sun.position.set(3,6,4); scene.add(sun);
+const grid = new THREE.GridHelper(30, 60, 0x2c4052, 0x1c2b38); scene.add(grid);
+
+const DS = 5.0;            // scene distance between the pivots (compressed)
+const PED = 1.15;          // pedestal height in the scene
+const matMetal = new THREE.MeshStandardMaterial({color:0x5d6f7d, metalness:.6, roughness:.45});
+const matDark  = new THREE.MeshStandardMaterial({color:0x2a3946, metalness:.4, roughness:.6});
+const matHorn  = new THREE.MeshStandardMaterial({color:0xb9c3cb, metalness:.75, roughness:.3});
+const matRadar = new THREE.MeshStandardMaterial({color:0x8a9aa6, metalness:.3, roughness:.55});
+const matBoard = new THREE.MeshStandardMaterial({color:0x6e5f3d, metalness:.5, roughness:.4});
+// model body (x fwd, y left, z up) -> three (x, z, -y)
+const B = (x,y,z) => new THREE.Vector3(x, z, -y);
+
+function tripod(x){
+  const g = new THREE.Group();
+  for (let i=0;i<3;i++){
+    const a = i*2*Math.PI/3 + 0.5;
+    const foot = new THREE.Vector3(x+Math.cos(a)*0.55, 0, Math.sin(a)*0.55);
+    const top = new THREE.Vector3(x, PED-0.12, 0);
+    const len = foot.distanceTo(top);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.024,len,8), matDark);
+    leg.position.copy(foot.clone().add(top).multiplyScalar(0.5));
+    leg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), top.clone().sub(foot).normalize());
+    g.add(leg);
+  }
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.1,16), matMetal);
+  head.position.set(x, PED-0.08, 0); g.add(head);
+  scene.add(g); return g;
+}
+tripod(0); tripod(DS);
+
+function axisChain(){
+  const base = new THREE.Group(), pan = new THREE.Group(), tilt = new THREE.Group(), roll = new THREE.Group();
+  base.add(pan); pan.add(tilt); tilt.add(roll); scene.add(base);
+  const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.16,0.26), matDark); yoke.position.y=-0.06; pan.add(yoke);
+  return {base, pan, tilt, roll};
+}
+const H = axisChain(), R = axisChain();
+
+// horn: pyramidal horn along +x, laser board around the mouth, camera
+const hornGeo = new THREE.CylinderGeometry(0.17, 0.05, 0.34, 4, 1, true);
+hornGeo.rotateY(Math.PI/4); hornGeo.rotateZ(-Math.PI/2);
+const horn = new THREE.Mesh(hornGeo, new THREE.MeshStandardMaterial({color:0xb9c3cb,metalness:.75,roughness:.3,side:THREE.DoubleSide}));
+horn.position.set(-0.07,0,0); H.roll.add(horn);
+const feed = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.06,0.06), matHorn); feed.position.set(-0.3,0,0); H.roll.add(feed);
+const board = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.32,0.42), matBoard); board.position.set(0.11,0,0); H.roll.add(board);
+const camBox = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.06,0.07), matDark); camBox.position.set(0.04,-0.2,0.12); H.roll.add(camBox);
+const hornCam = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.04,16), matMetal);
+hornCam.rotation.z=Math.PI/2; hornCam.position.set(0.11,-0.2,0.12); H.roll.add(hornCam);
+const emitters = {};
+
+// radar: panel antenna facing -x in the world (its local +x), PSD unit in front
+const panel = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.62,0.62), matRadar); panel.position.set(-0.02,0.3,0); R.roll.add(panel);
+const radome = new THREE.Mesh(new THREE.BoxGeometry(0.01,0.56,0.56), new THREE.MeshStandardMaterial({color:0xcfd8de,roughness:.8}));
+radome.position.set(0.055,0.3,0); R.roll.add(radome);
+const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.36,0.46), new THREE.MeshStandardMaterial({color:0x22313d,metalness:.5,roughness:.5,transparent:true,opacity:.55}));
+bracket.position.set(0.1,0.3,0); R.roll.add(bracket);
+const psdMesh = {};
+const datum = new THREE.Mesh(new THREE.SphereGeometry(0.014,16,12), new THREE.MeshBasicMaterial({color:0xf2c14e}));
+R.roll.add(datum);
+
+// beams
+const beamMat = k => new THREE.MeshBasicMaterial({color:new THREE.Color(C.ir), transparent:true, opacity:.9, blending:THREE.AdditiveBlending, depthWrite:false});
+const beams = {}, glows = {};
+const glowTex = (()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
+  const r=g.createRadialGradient(32,32,0,32,32,32);r.addColorStop(0,'rgba(255,90,160,1)');r.addColorStop(.3,'rgba(255,61,139,.55)');r.addColorStop(1,'rgba(255,61,139,0)');
+  g.fillStyle=r;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
+for (const k of ['A','B','C']){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,1,6,1,true), beamMat(k)); scene.add(m); beams[k]=m;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+  s.scale.set(.12,.12,1); scene.add(s); glows[k]=s;
+}
+const losMat = new THREE.LineDashedMaterial({color:0x8fe3ef, dashSize:.08, gapSize:.06, transparent:true, opacity:.55});
+const los = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]), losMat); scene.add(los);
+const boreMat = new THREE.LineBasicMaterial({color:0xf2c14e, transparent:true, opacity:.5});
+const bore = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]), boreMat); scene.add(bore);
+
+let built = false;
+function buildPose(P){
+  if (built) return; built = true;
+  for (const k of ['A','B','C']){
+    const [y,z] = P.lasers_m[k];
+    const em = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.05,16), matMetal);
+    em.rotation.z = Math.PI/2; em.position.copy(B(P.horn_lever_m[0]+0.02, y, z)); H.roll.add(em); emitters[k]=em;
+    const lv = P.radar_lever_m;
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.07),
+      new THREE.MeshStandardMaterial({color:k==='B'?0x34465a:0x1a2733, emissive:0x000000, metalness:.2, roughness:.6}));
+    plate.position.copy(B(lv[0]+0.01, -y, z+lv[2]*0)).add(B(0,0,lv[2]));
+    R.roll.add(plate); psdMesh[k]=plate;
+    if (k==='B'){ const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.03,24),
+        new THREE.MeshStandardMaterial({color:0x8fb8d8,metalness:.1,roughness:.05,transparent:true,opacity:.6}));
+      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); R.roll.add(lens); }
+  }
+  datum.position.copy(B(P.radar_lever_m[0], 0, P.radar_lever_m[2]));
+  panel.position.y = P.radar_lever_m[2]; radome.position.y = P.radar_lever_m[2]; bracket.position.y = P.radar_lever_m[2];
+}
+
+const D2R = Math.PI/180;
+function applyPose(m){
+  // Positions at true scale along the compressed range; ORIENTATIONS = line of sight
+  // plus the true alignment errors multiplied by the exaggeration factor, so an
+  // aligned rig looks aligned and a 0.01 deg error is visible.
+  const P = m.pose; buildPose(P);
+  const t = P.trans_m, kT = DS/m.distance_m, lz = P.radar_lever_m[2];
+  H.base.position.set(0, PED + t[1]*kT, -t[0]*kT);
+  R.base.position.set(DS, PED + t[3]*kT - lz, -t[2]*kT);
+  const refApprox = R.base.position.clone().add(new THREE.Vector3(0, lz, 0));
+  const L = refApprox.clone().sub(H.base.position);
+  const yaw0 = Math.atan2(-L.z, L.x), pitch0 = Math.atan2(L.y, Math.hypot(L.x, L.z));
+  const e = m.truth, X = exag*D2R;
+  H.pan.rotation.y = yaw0 - X*e[0]; H.tilt.rotation.z = pitch0 - X*e[1]; H.roll.rotation.x = X*e[4];
+  R.pan.rotation.y = Math.PI + yaw0 - X*e[2]; R.tilt.rotation.z = -pitch0 - X*e[3]; R.roll.rotation.x = 0;
+  scene.updateMatrixWorld(true);
+  const hx = new THREE.Vector3(1,0,0).transformDirection(H.roll.matrixWorld);
+  const rx = new THREE.Vector3(1,0,0).transformDirection(R.roll.matrixWorld);
+  const ref = datum.getWorldPosition(new THREE.Vector3());
+  const hc = new THREE.Vector3(...B(P.horn_lever_m[0],0,0).toArray()).applyMatrix4(H.roll.matrixWorld);
+  for (const kk of ['A','B','C']){
+    const o = emitters[kk].getWorldPosition(new THREE.Vector3());
+    const blocked = m.blocked;
+    let end;
+    const tt = ref.clone().sub(o).dot(rx) / hx.dot(rx);
+    end = o.clone().add(hx.clone().multiplyScalar(blocked ? tt*0.45 : tt));
+    const len = o.distanceTo(end), mid = o.clone().add(end).multiplyScalar(.5);
+    const bm = beams[kk]; bm.scale.set(1,len,1); bm.position.copy(mid);
+    bm.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), end.clone().sub(o).normalize());
+    const s = m.psd[kk]; bm.material.opacity = s.detect ? .95 : .45;
+    glows[kk].position.copy(end); glows[kk].scale.setScalar(s.valid ? .16 : .09);
+    psdMesh[kk].material.emissive.set(s.valid ? 0x3a0f22 : 0x000000);
+  }
+  los.geometry.setFromPoints([hc, ref]); los.computeLineDistances();
+  bore.geometry.setFromPoints([ref, ref.clone().add(rx.clone().multiplyScalar(-DS*0.9))]);
+  placeTag('tagH', hc.clone().add(new THREE.Vector3(0,.45,0)), 'שופר');
+  placeTag('tagR', ref.clone().add(new THREE.Vector3(0,.55,0)), 'מכ"ם');
+  placeTag('tagD', new THREE.Vector3(DS/2, .05, .9), `${m.distance_m} מ'`);
+}
+function placeTag(id, v, text){
+  let el = $(id); if(!el){el=document.createElement('div');el.id=id;el.className='tag3d';$('tags').appendChild(el)}
+  const p = v.clone().project(cam), r = canvas.getBoundingClientRect();
+  el.style.left = ((p.x+1)/2*r.width)+'px'; el.style.top = ((1-p.y)/2*r.height)+'px'; el.textContent = text;
+}
+function resize(){
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+function loop(){ orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+
+// ------------------------------------------------------------------ 2D canvases
+function ctx2(c){const g=c.getContext('2d');const w=c.clientWidth, h=c.clientHeight;
+  if (c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2} g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,w,h); return [g,w,h]}
+const trails = {A:[],B:[],C:[]};
+function drawPsd(k, s, geom){
+  const c = $('psd'+k).querySelector('canvas'), g = c.getContext('2d'), W=132;
+  g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,W);
+  const size = k==='B' ? geom.b_size_mm : geom.ac_size_mm, half=size/2, sc=(W/2-8)/half, cx=W/2, cy=W/2;
+  g.fillStyle='#101a23'; g.fillRect(cx-half*sc, cy-half*sc, size*sc, size*sc);
+  g.strokeStyle=C.rule; g.lineWidth=1; g.strokeRect(cx-half*sc+.5, cy-half*sc+.5, size*sc-1, size*sc-1);
+  // tolerance ring: 0.05 deg in mm on this PSD
+  const tolmm = (k==='B'? geom.mm_per_deg_b : geom.mm_per_deg_ac)*TOL;
+  if (tolmm < half*1.5){g.setLineDash([3,3]); g.strokeStyle=C.survey; g.globalAlpha=.6; g.beginPath(); g.arc(cx,cy,Math.min(tolmm,half*1.4)*sc,0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=1}
+  g.strokeStyle=C.ink3; g.beginPath(); g.moveTo(cx-8,cy); g.lineTo(cx+8,cy); g.moveTo(cx,cy-8); g.lineTo(cx,cy+8); g.stroke();
+  const tr = trails[k]; if (s.detect){tr.push([s.x,s.y]); if(tr.length>24)tr.shift()} else if(tr.length) tr.shift();
+  const X = v => cx - Math.max(-half*1.1,Math.min(half*1.1,v))*sc, Y = v => cy - Math.max(-half*1.1,Math.min(half*1.1,v))*sc;
+  g.strokeStyle=C.irdim; g.beginPath(); tr.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke();
+  if (s.detect){
+    const r = k==='B' ? 2.5 : Math.max(2.5, geom.spot_r99_mm*sc);
+    const gr = g.createRadialGradient(X(s.x),Y(s.y),0,X(s.x),Y(s.y),r);
+    gr.addColorStop(0,'rgba(255,120,175,1)'); gr.addColorStop(.5,'rgba(255,61,139,.6)'); gr.addColorStop(1,'rgba(255,61,139,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(X(s.x),Y(s.y),r,0,7); g.fill();
+  }
+  const box = $('psd'+k), pill = box.querySelector('[data-k=pill]');
+  pill.className = 'pill' + (s.valid?' valid':s.detect?' on':'');
+  pill.textContent = s.valid ? 'נעול' : s.detect ? 'חלקי' : 'אין אות';
+  const per = k==='B' ? geom.mm_per_deg_b : geom.mm_per_deg_ac;
+  box.querySelector('.read').textContent = s.detect ? `${fmt(s.x,3)}, ${fmt(s.y,3)} mm` : '—';
+  box.querySelector('.sub').textContent = `${size} mm · ${per.toFixed(k==='B'?3:1)} mm/° · power ${(s.power*100).toFixed(0)}%`;
+}
+
+function drawBull(m){
+  const [g,w,h] = ctx2($('bull')); const R0 = Math.min(w,h)/2-10, cx=w/2, cy=h/2, span=0.1, sc=R0/span;
+  g.strokeStyle=C.rule; g.lineWidth=1;
+  for (const r of [0.025,0.075,0.1]){g.beginPath();g.arc(cx,cy,r*sc,0,7);g.stroke()}
+  g.strokeStyle=C.survey; g.lineWidth=1.5; g.beginPath(); g.arc(cx,cy,TOL*sc,0,7); g.stroke();
+  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('0.05°', cx+TOL*sc*0.72, cy-TOL*sc*0.72);
+  g.strokeStyle=C.rule; g.beginPath(); g.moveTo(cx-R0,cy); g.lineTo(cx+R0,cy); g.moveTo(cx,cy-R0); g.lineTo(cx,cy+R0); g.stroke();
+  const clip = v => Math.max(-span, Math.min(span, v));
+  const pt = (az,el,col,fill,label) => { const x=cx+clip(az)*sc, y=cy-clip(el)*sc;
+    g.beginPath(); g.arc(x,y,5,0,7); if(fill){g.fillStyle=col;g.fill()} else {g.strokeStyle=col;g.lineWidth=1.5;g.stroke()}
+    g.fillStyle=col; g.fillText(label, x+7, y-6); };
+  if (m.truth){ pt(m.truth[2],m.truth[3],C.truth,false,'מכ"ם (אמת)'); pt(m.truth[0],m.truth[1],C.truth,false,'שופר (אמת)'); }
+  if (m.est){ pt(m.est[2],m.est[3],C.survey,true,'מכ"ם'); pt(m.est[0],m.est[1],C.ink2,true,'שופר'); }
+}
+
+function drawChart(){
+  const [g,w,h] = ctx2($('chart')); if (!hist.length) return;
+  const t1 = hist[hist.length-1].t, t0 = Math.max(t1-60, hist[0].t), dur = Math.max(t1-t0, 10), span=0.12, sx=t=>(t-t0)/dur*w, sy=v=>h/2 - Math.max(-span,Math.min(span,v))/span*(h/2-6);
+  g.fillStyle='rgba(242,193,78,.06)'; g.fillRect(0, sy(TOL), w, sy(-TOL)-sy(TOL));
+  g.strokeStyle=C.rule; g.beginPath(); g.moveTo(0,sy(0)); g.lineTo(w,sy(0)); g.stroke();
+  g.setLineDash([4,4]); g.strokeStyle=C.survey; g.globalAlpha=.5;
+  for (const v of [TOL,-TOL]){g.beginPath();g.moveTo(0,sy(v));g.lineTo(w,sy(v));g.stroke()} g.setLineDash([]); g.globalAlpha=1;
+  const line=(f,col,lw=1.6)=>{g.strokeStyle=col;g.lineWidth=lw;g.beginPath();let on=false;
+    for(const p of hist){const v=f(p); if(v==null){on=false;continue} const x=sx(p.t),y=sy(v); on?g.lineTo(x,y):g.moveTo(x,y); on=true} g.stroke()};
+  line(p=>p.tr?p.tr[2]:null, C.truth, 1);
+  line(p=>p.e?p.e[0]:null, C.ink2); line(p=>p.e?p.e[1]:null, '#5f7a8f');
+  line(p=>p.e?p.e[2]:null, C.survey, 2); line(p=>p.e?p.e[3]:null, '#e9a23b', 2);
+  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('+0.05°',4,sy(TOL)-3); g.fillText('-0.05°',4,sy(-TOL)+12);
+}
+
+function drawRaster(m){
+  const [g,w,h] = ctx2($('raster')); const sc = m.scan, info = sc.info;
+  if (!info || !info.half_deg){g.fillStyle=C.ink3;g.font='13px IBM Plex Sans Hebrew';g.fillText('הסריקה תופיע אחרי שלב האיתור',12,h/2);return}
+  const half = info.half_deg*1.25, c = info.centre, s = Math.min(w,h)/2/half;
+  const X=v=>w/2-(v-c[0])*s, Y=v=>h/2-(v-c[1])*s;
+  g.strokeStyle=C.rule; g.strokeRect(X(c[0]+info.half_deg), Y(c[1]+info.half_deg), 2*info.half_deg*s, 2*info.half_deg*s);
+  g.strokeStyle=C.ir; g.globalAlpha=.8; g.lineWidth=1.2; g.beginPath();
+  sc.path.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke(); g.globalAlpha=1;
+  g.fillStyle=C.survey; g.beginPath(); g.arc(X(sc.pos[0]),Y(sc.pos[1]),4,0,7); g.fill();
+  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew';
+  g.fillText(`חלון ±${info.half_deg.toFixed(3)}°, צעד ${info.step_deg.toFixed(4)}°`, 8, 14);
+}
+
+// ------------------------------------------------------------------ text panels
+function verdict(m){
+  const v=$('verdict'), big=v.querySelector('.big'), why=v.querySelector('.why');
+  v.className='verdict'+(m.aligned?' aligned':'')+(m.state==='FAULT'?' fault':'');
+  if (m.state==='FAULT'){big.textContent='תקלה'; why.textContent=m.fault_reason; return}
+  if (m.aligned){
+    const tw = m.track && m.track.full ? m.track.reported : (m.verify && m.verify.reported);
+    big.textContent='מיושר ל-0,0';
+    why.innerHTML = tw ? `|mean|+2σ מקסימלי <span class="num">${Math.max(...tw.score).toFixed(4)}°</span> &lt; 0.05° · המכ"ם בבלם` : '';
+    return }
+  big.textContent = m.klt_bridge ? 'הקרן חסומה, KLT מגשר' : STATE_HE[m.state];
+  why.innerHTML = (STATE_WHY[m.state]||'') + (m.sub && m.state!=='IDLE' ? ` <span class="ltr" style="color:var(--ink-3)">(${m.sub})</span>` : '');
+}
+function errText(m){
+  const ids=['eh_az','eh_el','er_az','er_el'];
+  ids.forEach((id,i)=>{const el=$(id), v=m.est?m.est[i]:null; el.textContent=v==null?'—':fmt(v,4)+'°';
+    el.className='v num '+(v==null?'':Math.abs(v)<TOL?'good':'bad');
+    $('t'+id).textContent = m.truth ? 'אמת '+fmt(m.truth[i],4)+'°' : ''});
+  const box=$('score'); const w = m.track || (m.verify && {reported:m.verify.reported, truth:m.verify.truth});
+  if (w && w.reported){
+    const rs=w.reported.score, ts=w.truth.score, ok=w.reported.pass;
+    box.innerHTML = `${m.track?'חלון מעקב 5 ש\'':'חלון אימות'}: |mean|+2σ מקסימלי <span class="num ${ok?'ok':'no'}">${Math.max(...rs).toFixed(4)}°</span> מדווח · <span class="num" style="color:var(--truth)">${Math.max(...ts).toFixed(4)}°</span> אמת ${w.truth.pass?'(עובר)':'(לא עובר: שאריות כיול)'}`;
+  } else box.textContent='';
+  $('facts').innerHTML = `הפרש גובה (R3, ממד הזווית): <span class="num">${m.dh_mm==null?'—':m.dh_mm.toFixed(0)} mm</span> · אמת <span class="num">${m.dh_true_mm.toFixed(0)} mm</span><br>`+
+    `כתם (99%): <span class="num">${(2*m.psd_geom.spot_r99_mm).toFixed(2)} mm</span> · תיקונים: <span class="num">${m.corrections}</span> · הצבה #<span class="num">${m.setup_id}</span>`;
+}
+function servos(m){
+  const he={horn_pan:'שופר Pan',horn_tilt:'שופר Tilt',horn_roll:'שופר Roll',radar_pan:'מכ"ם Pan',radar_tilt:'מכ"ם Tilt',radar_roll:'מכ"ם Roll'};
+  $('servos').querySelector('tbody').innerHTML = m.servos.map(s=>`<tr><td>${he[s.name]}</td><td class="num">${fmt(s.enc,3)}</td><td class="num">${fmt(s.target,3)}</td><td>${s.braked?'<span class="brake">בלם</span>':s.moving?'נע':''}</td></tr>`).join('');
+  const i=m.incl;
+  $('incl').innerHTML=`מד זווית שופר: tilt <span class="num">${fmt(i.horn_tilt,3)}°</span>, roll <span class="num">${fmt(i.horn_roll,3)}°</span><br>מד זווית מכ"ם: tilt <span class="num">${fmt(i.radar_tilt,3)}°</span>, roll <span class="num">${fmt(i.radar_roll,3)}°</span>`;
+}
+function beforeAfter(m){
+  const el=$('ba'); if(!m.before){el.textContent='יופיע אחרי המדידה הראשונה ב-ALIGN.';return}
+  const b=m.before.est, bt=m.before.true;
+  let h=`<b>לפני</b> (PSD): מכ"ם <span class="num">${fmt(b[2])}/${fmt(b[3])}°</span>, שופר <span class="num">${fmt(b[0])}/${fmt(b[1])}°</span><br><span style="color:var(--truth)">אמת: מכ"ם <span class="num">${fmt(bt[2])}/${fmt(bt[3])}°</span>, שופר <span class="num">${fmt(bt[0])}/${fmt(bt[1])}°</span></span>`;
+  if (m.after){const a=m.after.reported.score, at=m.after.truth.score;
+    h+=`<br><br><b>אחרי</b> |mean|+2σ (Az,El): מכ"ם <span class="num">${a[2].toFixed(4)}/${a[3].toFixed(4)}°</span>, שופר <span class="num">${a[0].toFixed(4)}/${a[1].toFixed(4)}°</span><br><span style="color:var(--truth)">אמת: מכ"ם <span class="num">${at[2].toFixed(4)}/${at[3].toFixed(4)}°</span>, שופר <span class="num">${at[0].toFixed(4)}/${at[1].toFixed(4)}°</span> ${m.after.truth_pass?'– עובר':'– לא עובר (שאריות כיול; ראו "כיול אידיאלי")'}</span>`}
+  el.innerHTML=h;
+}
+function pipeline(m){
+  const idx = PIPE.indexOf(m.state);
+  pipe.querySelectorAll('.st').forEach((d,i)=>{d.className='st'+(m.state==='FAULT'?'':i<idx?' done':i===idx?' now':'')});
+  subEl.textContent = m.state==='TRACK' ? (m.klt_bridge?'KLT מגשר על חסימה':'מעקב: שופר מתקן, מכ"ם בבלם ומנוטר') : '';
+}
+function controls(m){
+  const set=(id,val)=>$(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.v===val)));
+  set('dist', m.distance_m); set('speed', m.speed); set('psdsize', m.psd_geom.ac_size_mm);
+  $('gap').setAttribute('aria-pressed', String(m.radar_gap)); $('ideal').setAttribute('aria-pressed', String(m.ideal_calib));
+  $('alerts').textContent = m.alerts.join(' · ');
+}
+function log(m){
+  const L=$('log'); if (m.seq===1||m.t<0.05) {L.innerHTML=''}
+  for (const [t,txt] of m.events){const d=document.createElement('div');d.innerHTML=`<span class="t num">${t.toFixed(2)}s</span>${txt}`;L.prepend(d)}
+}
+
+// ------------------------------------------------------------------ stream
+function onMsg(m){
+  if (M && m.t < M.t - 0.5) { hist=[]; $('log').innerHTML=''; for(const k in trails) trails[k]=[]; }
+  M = m;
+  hist.push({t:m.t, e:m.est && m.state!=='SCAN' ? m.est.slice(0,4) : null, tr:m.truth.slice(0,4)});
+  while (hist.length && hist[0].t < m.t-60) hist.shift();
+  for (const k of ['A','B','C']) drawPsd(k, m.psd[k], m.psd_geom);
+  drawBull(m); drawChart(); drawRaster(m); verdict(m); errText(m); servos(m); beforeAfter(m); pipeline(m); controls(m); log(m);
+}
+function connect(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = e => onMsg(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, 1000);
+}
+connect();
+</script>
+</body>
+</html>

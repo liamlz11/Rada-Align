@@ -1,0 +1,135 @@
+"""Final design (Raster Scan + PSD + KLT): model, sensors, controller, demo server."""
+
+import math
+
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
+
+from rada_align.psd.config import load_psd_config, quiet
+from rada_align.psd.controller import PsdController
+from rada_align.psd.model import DEG, Geometry
+from rada_align.psd.server import create_app
+from rada_align.psd.session import PsdSession
+from rada_align.psd.world import World
+
+CFG = load_psd_config()
+QUIET = quiet(CFG)
+
+
+def run(world, ctrl, seconds, stop_state=None):
+    end = world.t + seconds
+    while world.t < end:
+        ctrl.tick()
+        world.step(ctrl.dt)
+        if stop_state and ctrl.state == stop_state:
+            break
+    return ctrl.state
+
+
+@pytest.mark.parametrize("d", [2.0, 12.0])
+def test_readings_zero_when_aligned_and_rank_5(d):
+    geo = Geometry(CFG, d)
+    assert np.abs(geo.readings_vector(np.zeros(6), np.zeros(4))).max() < 1e-9
+    lin = geo.jacobians()
+    sv = np.linalg.svd(lin["Jm"], compute_uv=False)
+    assert int((sv > sv[0] * 1e-9).sum()) == 5
+    X, *_ = np.linalg.lstsq(lin["Jm"].T, lin["Je"].T, rcond=None)
+    assert np.abs(lin["Jm"].T @ X - lin["Je"].T).max() < 1e-6  # all 5 errors observable
+
+
+def test_psd_b_ignores_translation_and_a_reads_horn_error():
+    geo = Geometry(CFG, 12.0)
+    shifted = geo.beams(np.zeros(6), np.array([0.005, 0.0, 0.0, 0.0]))
+    assert np.abs(shifted["B"]).max() < 1e-9
+    assert abs(shifted["A"][0]) > 4.0  # 5 mm sideways shows on A
+    e = geo.errors(np.zeros(6), np.array([0.005, 0.0, 0.0, 0.0]))
+    G = geo.jacobians()["G"]
+    assert G[0, 0] == pytest.approx(geo.d * 1e3 * DEG - 0.2e3 * DEG, rel=1e-3)  # 11.8 m path
+    assert abs(e[0]) == pytest.approx(math.degrees(0.005 / (geo.d - 0.2)), rel=1e-2)
+
+
+def test_spot_off_the_psd_is_invalid_and_partial_is_detected_only():
+    w = World(QUIET, 0, 12.0)
+    w.base[:] = 0
+    w.trans[:] = 0
+    half = w.ac_size_mm / 2
+    mm_per_deg = (w.geo.d - 0.2) * 1e3 * DEG
+    w.base[0] = (half - 0.5 * w.geo.spot_r99_mm) / mm_per_deg  # spot straddles the edge
+    s = w.read_psds()["A"]
+    assert s.detect and not s.valid
+    w.base[0] = 1.0  # far off
+    s = w.read_psds()["A"]
+    assert not s.detect and not s.valid
+
+
+@pytest.mark.parametrize("d,seed", [(2.0, 0), (12.0, 1), (15.0, 2)])
+def test_zero_noise_run_reaches_track_with_small_true_error(d, seed):
+    w = World(QUIET, seed, d)
+    c = PsdController(w)
+    c.start()
+    assert run(w, c, 60, "TRACK") == "TRACK"
+    assert np.abs(w.true_errors()[:4]).max() < 0.005
+    assert c.after["truth_pass"]
+
+
+def test_radar_is_braked_in_track_and_moves_only_in_a_gap():
+    w = World(QUIET.replace_path("wind.drift_deg_per_min", 0.0), 3, 12.0)
+    c = PsdController(w)
+    c.start()
+    run(w, c, 60, "TRACK")
+    radar_before = [w.servos[i].pos for i in (3, 4, 5)]
+    w.push_side("radar", 0.08)
+    run(w, c, 8)
+    assert [w.servos[i].pos for i in (3, 4, 5)] == radar_before
+    assert any(a.startswith("radar drift") for a in c.alerts)
+    c.radar_gap = True
+    run(w, c, 10)
+    assert [w.servos[i].pos for i in (3, 4, 5)] != radar_before
+    assert np.abs(w.true_errors()[2:4]).max() < 0.03
+
+
+def test_short_block_is_bridged_long_loss_rescans():
+    w = World(QUIET, 4, 12.0)
+    c = PsdController(w)
+    c.start()
+    run(w, c, 60, "TRACK")
+    w.block_beam(0.5)
+    run(w, c, 0.3)
+    assert c.state == "TRACK" and c.klt_bridge
+    run(w, c, 1.0)
+    assert c.state == "TRACK" and not c.klt_bridge
+    w.block_beam(3.0)
+    run(w, c, 1.5)
+    assert c.state == "SCAN"
+
+
+def test_missing_calibration_faults():
+    w = World(QUIET, 0, 12.0, calibration_loaded=False)
+    c = PsdController(w)
+    c.start()
+    run(w, c, 1.0)
+    assert c.state == "FAULT" and "calibration" in c.fault_reason
+
+
+def test_scan_finds_the_beam_from_a_camera_bias():
+    cfg = QUIET.replace_path("camera.acquire_sigma_deg", 0.05)
+    w = World(cfg, 5, 12.0)
+    w.camera_bias[:] = [0.06, -0.05]  # spot well outside the PSD after ACQUIRE
+    c = PsdController(w)
+    c.start()
+    assert run(w, c, 60, "TRACK") == "TRACK"
+    assert any("beam captured" in e[1] for e in c.events)
+
+
+def test_demo_server_streams_and_accepts_commands():
+    session = PsdSession(QUIET, seed=1, distance_m=2.0)
+    with TestClient(create_app(session, autostart=False)) as client:
+        assert "three" in client.get("/").text.lower()
+        assert client.post("/api/command", json={"name": "start"}).json()["ok"]
+        msg = None
+        for _ in range(int(20 / session.dt)):
+            msg = session.step_once() or msg
+        assert msg["sim"] is True and msg["state"] in msg["states"]
+        assert set(msg["psd"]) == {"A", "B", "C"}
+        assert client.post("/api/command", json={"name": "bogus"}).status_code == 400

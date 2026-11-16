@@ -120,3 +120,69 @@ montecarlo:
   max_time_s: 300.0
   track_time_s: 10.0
   sensitivity_runs: 100
+
+# ---------------------------------------------------------------------------
+# FINAL DESIGN (docs/FINAL_DESIGN.md): Raster Scan + PSD + KLT.
+# Used only by rada_align.psd (the final-design simulator and demo). Every
+# section above belongs to the superseded mutual-sighting code.
+psd:
+  geometry:
+    horn_lever_m: [0.10, 0.0, 0.0]     # [repo] geometry.horn_pivot_to_center_m: pivot -> horn centre, body [fwd, left, up]
+    radar_lever_m: [0.10, 0.0, 0.30]   # ASSUMPTION - replace with datasheet/measurement (radar reference vs its tilt pivot)
+    laser_a_m: [-0.15, 0.10]           # ASSUMPTION - replace with datasheet/measurement (horn body [left, up]); PSD-A at the mirror position
+    laser_b_m: [0.15, 0.10]            # ASSUMPTION - replace with datasheet/measurement
+    laser_c_m: [0.0, -0.10]            # ASSUMPTION - replace with datasheet/measurement
+    setup_pointing_deg: 1.0            # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per servo axis)
+    setup_roll_deg: 0.5                # ASSUMPTION - replace with datasheet/measurement
+    setup_offset_m: 0.25               # ASSUMPTION - replace with datasheet/measurement (relative horn position, uniform +/-, field)
+    setup_offset_short_m: 0.05         # ASSUMPTION - replace with datasheet/measurement (same, tabletop, used when d <= 3 m)
+  sensor:
+    ac_size_mm: 20.0                   # ASSUMPTION - replace with datasheet/measurement (field option, OSI DL-20 class [vendor page]; S5991-01 is 9)
+    b_size_mm: 9.0                     # [datasheet] Hamamatsu S5991-01 photosensitive area 9 x 9 mm
+    b_focal_mm: 50.0                   # ASSUMPTION - replace with datasheet/measurement (PSD-B lens)
+    b_aperture_mm: 25.0                # ASSUMPTION - replace with datasheet/measurement (PSD-B lens clear aperture)
+    noise_um: 1.5                      # [datasheet] S5991-01 position resolution at 1 uA, 1 kHz (conservative here)
+    rate_hz: 100.0                     # ASSUMPTION - replace with datasheet/measurement (lock-in output rate used by the simulator)
+  laser:
+    wavelength_nm: 960.0               # DESIGN (D11): PSD peak sensitivity [datasheet]
+    launch_radius_mm: 5.0              # DESIGN (FINAL_DESIGN 7.1): 10 mm beam focused at the PSD distance
+    board_sigma_deg: 0.010             # ASSUMPTION - replace with datasheet/measurement (board to horn axis after CALIB, common mode)
+    differential_sigma_deg: 0.005      # ASSUMPTION - replace with datasheet/measurement (laser to laser)
+  calib:
+    psd_b_null_sigma_deg: 0.015        # ASSUMPTION - replace with datasheet/measurement (PSD-B null to radar datum)
+    seat_sigma_deg: 0.010              # ASSUMPTION - replace with datasheet/measurement (PSD unit seat on the datum, per setup)
+    psd_position_sigma_mm: 0.5         # ASSUMPTION - replace with datasheet/measurement (PSD-A/C vs radar reference)
+  servos:
+    travel_deg: 5.0                    # DESIGN (FINAL_DESIGN section 2): +/- on every axis
+    max_speed_deg_s: 2.0               # ASSUMPTION - replace with datasheet/measurement
+    encoder_deg: 0.001                 # DESIGN (FINAL_DESIGN 7.5): output resolution per count
+  wind:
+    jitter_deg: 0.0106                 # ASSUMPTION - replace with datasheet/measurement (per head, per axis, fast part)
+    jitter_tau_s: 0.05                 # ASSUMPTION - replace with datasheet/measurement
+    sway_deg: 0.0106                   # ASSUMPTION - replace with datasheet/measurement (per head, per axis, slow part)
+    sway_tau_s: 2.0                    # ASSUMPTION - replace with datasheet/measurement
+    drift_deg_per_min: 0.01            # ASSUMPTION - replace with datasheet/measurement (slow settling, 1 sigma rate)
+  inclinometer:
+    noise_deg: 0.002                   # ASSUMPTION - replace with datasheet/measurement
+    bias_sigma_deg: 0.005              # ASSUMPTION - replace with datasheet/measurement
+  camera:
+    acquire_sigma_deg: 0.05            # ASSUMPTION - replace with datasheet/measurement (camera-to-laser-board boresight, per setup)
+    fov_half_deg: 7.0                  # ASSUMPTION - replace with datasheet/measurement
+  rangefinder:
+    sigma_m: 0.05                      # ASSUMPTION - replace with datasheet/measurement
+  control:
+    deadband_deg: 0.01                 # DESIGN
+    kp: 1.0                            # DESIGN: ALIGN gain on the decoupled errors
+    ki: 0.0                            # DESIGN
+    track_kp: 0.5                      # DESIGN: TRACK horn gain
+    settle_s: 0.3                      # DESIGN
+    align_window_s: 0.5                # DESIGN
+    verify_window_s: 5.0               # DESIGN (CLAUDE.md: 5-10 s)
+    track_window_s: 5.0                # DESIGN
+    track_threshold_deg: 0.03          # DESIGN (CHALLENGE.md operating flow step 8)
+    radar_alert_deg: 0.03              # DESIGN (FINAL_DESIGN C1)
+    max_iterations: 20                 # DESIGN
+    max_verify_attempts: 4             # DESIGN
+    min_valid_fraction: 0.9            # DESIGN: VERIFY fails if fewer samples have the spot fully on the PSD
+    scan_sigmas: 3.0                   # DESIGN: raster half-window = scan_sigmas * camera.acquire_sigma_deg
+    beam_lost_s: 1.0                   # DESIGN: longer beam loss in TRACK -> SCAN (shorter: KLT bridge)

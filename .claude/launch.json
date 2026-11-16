@@ -4,8 +4,32 @@
     {
       "name": "rada-dashboard",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "rada_align.ui", "--port", "8765", "--distance", "2", "--seed", "1"],
+      "runtimeArgs": [
+        "-m",
+        "rada_align.ui",
+        "--port",
+        "8765",
+        "--distance",
+        "2",
+        "--seed",
+        "1"
+      ],
       "port": 8765
+    },
+    {
+      "name": "rada-psd-demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "rada_align.psd",
+        "--port",
+        "8766",
+        "--distance",
+        "12",
+        "--seed",
+        "1"
+      ],
+      "port": 8766
     }
   ]
 }

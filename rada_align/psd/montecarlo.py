@@ -1,0 +1,77 @@
+"""Monte Carlo of the final design, scored against truth.
+
+    python -m rada_align.psd.montecarlo --runs 200 --distance 12
+
+Reported pass = the controller's VERIFY passed. True pass = the same window
+scored on the true errors. False accept = reported pass but true fail.
+"""
+
+from __future__ import annotations
+
+import argparse
+
+import numpy as np
+
+from .config import load_psd_config, quiet
+from .controller import PsdController
+from .world import World
+
+
+def one_run(cfg, seed, distance_m, max_s=120.0) -> dict:
+    w = World(cfg, seed, distance_m)
+    c = PsdController(w)
+    c.start()
+    while w.t < max_s and c.state not in ("TRACK", "FAULT"):
+        c.tick()
+        w.step(c.dt)
+    out = {"state": c.state, "t": w.t, "fault": c.fault_reason, "iters": c._iter}
+    if c.after:
+        out["reported_pass"] = True
+        out["true_pass"] = bool(c.after["truth_pass"])
+        out["true_score"] = c.after["truth"]["score"]
+    else:
+        out["reported_pass"] = False
+        out["true_pass"] = False
+    return out
+
+
+def run(cfg, runs, distance_m, seed0=0) -> dict:
+    res = [one_run(cfg, seed0 + i, distance_m) for i in range(runs)]
+    rep = np.array([r["reported_pass"] for r in res])
+    tru = np.array([r["true_pass"] for r in res])
+    scores = np.array([r["true_score"] for r in res if "true_score" in r])
+    times = np.array([r["t"] for r in res if r["state"] == "TRACK"])
+    faults = {}
+    for r in res:
+        if r["state"] == "FAULT":
+            faults[r["fault"]] = faults.get(r["fault"], 0) + 1
+    return {
+        "runs": runs, "distance_m": distance_m,
+        "reported_pass": float(rep.mean()), "true_pass": float(tru.mean()),
+        "false_accept": float((rep & ~tru).mean()),
+        "p95_true_score": None if len(scores) == 0 else np.percentile(scores, 95, axis=0).round(4).tolist(),
+        "median_time_to_track_s": None if len(times) == 0 else float(np.median(times)),
+        "faults": faults,
+    }
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(prog="python -m rada_align.psd.montecarlo")
+    p.add_argument("--runs", type=int, default=200)
+    p.add_argument("--distance", type=float, default=12.0)
+    p.add_argument("--keep", nargs="*", default=None,
+                   help="error sources to keep (default: all on); e.g. --keep wind")
+    args = p.parse_args(argv)
+    cfg = load_psd_config()
+    if args.keep is not None:
+        cfg = quiet(cfg, tuple(args.keep))
+    r = run(cfg, args.runs, args.distance)
+    print(f"final design Monte Carlo, {r['runs']} runs at {r['distance_m']} m (SIMULATION, assumed parameters)")
+    print(f"  reported pass {r['reported_pass']:.1%} | TRUE pass {r['true_pass']:.1%} | false accepts {r['false_accept']:.1%}")
+    print(f"  p95 true score per axis (eh_az, eh_el, er_az, er_el): {r['p95_true_score']} deg")
+    print(f"  median time to TRACK {r['median_time_to_track_s']} s; faults {r['faults']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

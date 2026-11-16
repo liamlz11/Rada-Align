@@ -265,6 +265,9 @@ def _from_dict(cls, data, path: str):
 
 
 def config_from_dict(data: dict) -> Config:
+    # The `psd:` section belongs to the final design and is loaded by
+    # rada_align.psd.config; the legacy Config does not see it.
+    data = {k: v for k, v in data.items() if k != "psd"}
     cfg = _from_dict(Config, data, "")
     if cfg.mode not in ("sim", "hw"):
         raise ValueError(f"config 'mode': must be 'sim' or 'hw', got {cfg.mode!r}")
