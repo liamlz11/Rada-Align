@@ -202,6 +202,7 @@ class PsdSession:
             "track": None if tw is None else {
                 "reported": _score(tw["reported"]), "truth": _score(tw["truth"]), "full": tw["full"]},
             "before": c.before,
+            "before_camera": c.before_camera,
             "after": c.after,
             "servos": [{"name": n, "pos": _f(s.pos, 4), "enc": _f(s.encoder, 4), "target": _f(s.target, 4),
                         "braked": s.braked, "moving": s.moving, "travel": s.travel}

@@ -231,3 +231,10 @@ Template:
 - Tests: `.venv/Scripts/python.exe -m pytest -q` -> all pass (new: U_bias equals 2x the sampled spread within 15%).
 - Monte Carlo (200 runs): 2 m reported 98.5% / TRUE 23.0% / false accepts 75.5% / incl. U_bias 0.0% (false accepts 0.0%); 12 m 99.0% / 43.5% / 55.5% / 0.0% (0.0%); 15 m 93.5% / 43.0% / 50.5% / 0.0% (0.0%). U_bias at 12 m: horn 0.0237/0.0242, radar 0.0369/0.0372 deg.
 - Finding: strict pass needs a radar-side calibration of about 0.01 deg (1 sigma) instead of the assumed 0.018, or less wind than assumed [arith]. Not tuned.
+
+## 2026-11-16 – Demo polish (Liam: "Polish the demo")
+- 3D view presets (overview, side, top, behind the radar, PSD unit close-up) with eased camera moves; a drag cancels the preset. New 3D labels for the laser+camera board and the PSD unit; labels hide when off-screen.
+- Guided tour button ("הדגמה מודרכת"): new setup -> autonomous alignment (caption per state, camera follows SCAN/ALIGN/VERIFY) -> horn knock -> short beam block (KLT bridge) -> radar knock (alert only, radar braked) -> correction gap (radar raster + ALIGN) -> end. Drives the same /api/command endpoints as the buttons and waits in simulation time; "עצור" aborts it.
+- Before/after card (R5) rebuilt: per-axis rows on one log scale 0.001-1 deg with the 0.05 deg line, truth under each value, improvement factor, truth pass and U_bias pass.
+- Fix: the radar "before" error was taken at the first PSD reading, after the camera coarse pointing and the scan, so it showed ~0.02 deg instead of the real setup error. Controller now records `before_camera` (emitter error measured by the camera at ACQUIRE, plus truth) and the card uses it for the radar rows. Example run at 12 m: camera +1.665/-1.363 deg, truth +1.598/-1.269 deg.
+- Verified in the browser at 1440x900: full tour completes (TRACK, gap closed, no alerts, no console errors). Tests: `.venv/Scripts/python.exe -m pytest -q` -> 128 passed.

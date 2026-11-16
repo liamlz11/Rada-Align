@@ -40,6 +40,7 @@ class PsdController:
         self.est: np.ndarray | None = None
         self.use: tuple[str, ...] = ()
         self.before: dict | None = None
+        self.before_camera: dict | None = None  # emitter error from the camera, before any correction (R5)
         self.after: dict | None = None
         self.window: dict | None = None
         self.track_window: dict | None = None
@@ -124,6 +125,7 @@ class PsdController:
         self.alerts = []
         self.after = None
         self.before = None
+        self.before_camera = None
         self.track_window = None
         self.window = None
         self.klt_bridge = False
@@ -175,6 +177,10 @@ class PsdController:
                 if self._t_state > 3.0:
                     self._fault("camera does not see the PSD unit (outside FOV)")
                 return
+            if self.before_camera is None:
+                tru = self.w.true_errors()
+                self.before_camera = {"side": self.E_NAME, "axes": list(self.E_ERR), "est": [float(v) for v in cam],
+                                      "true": [float(tru[i]) for i in self.E_ERR]}
             self._command(self.E_SRV, -np.linalg.solve(self._Jsub(self.E_ERR, self.E_SRV), np.array(cam)))
             self._log(f"PSD unit found by template match, KLT locked; coarse {self.E_NAME} error {cam[0]:+.3f}/{cam[1]:+.3f} deg")
             self.sub = "coarse point"

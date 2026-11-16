@@ -62,6 +62,30 @@ main{padding:16px 22px 28px;display:grid;gap:16px;
 .exag{position:absolute;top:16px;inset-inline-end:16px;pointer-events:auto;background:rgba(18,28,38,.8);
   border:1px solid var(--rule);border-radius:var(--r-sm);padding:6px 10px;font-size:.8rem;color:var(--ink-2)}
 .exag input{vertical-align:middle;width:110px}
+.views{position:absolute;top:58px;inset-inline-end:16px;pointer-events:auto;display:flex;flex-direction:column;gap:4px}
+.views button{background:rgba(18,28,38,.8);border:1px solid var(--rule);border-radius:var(--r-sm);padding:4px 10px;
+  font-size:.78rem;color:var(--ink-2);cursor:pointer;text-align:start}
+.views button[aria-pressed="true"]{border-color:var(--survey);color:var(--survey)}
+.tag3d.small{font-size:.72rem;color:var(--ink-3)}
+.tag3d.small::after{content:"";display:block;width:1px;height:14px;background:var(--ink-3);opacity:.6;margin:2px auto 0}
+.caption{position:absolute;inset-inline:18%;bottom:96px;text-align:center;pointer-events:none;
+  background:rgba(10,16,22,.88);border:1px solid var(--survey);border-radius:var(--r-lg);padding:10px 16px;
+  opacity:0;transform:translateY(8px);transition:opacity .35s,transform .35s}
+.caption.on{opacity:1;transform:none}
+.caption b{display:block;color:var(--survey);font-size:1.05rem}
+.caption span{color:var(--ink-2);font-size:.88rem}
+.caption .step{color:var(--ink-3);font-size:.75rem;margin-top:4px}
+.btn.tour{background:transparent;border-color:var(--survey);color:var(--survey);font-weight:500}
+.btn.tour[aria-pressed="true"]{background:var(--survey);color:#1b1608}
+.ba{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 12px;align-items:center;font-size:.86rem}
+.ba .h{color:var(--ink-3);font-size:.78rem}
+.ba .cell{display:flex;flex-direction:column;gap:3px}
+.ba .bar{height:6px;border-radius:3px;background:var(--panel-2);position:relative;overflow:hidden}
+.ba .bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:3px}
+.ba .bar::after{content:"";position:absolute;inset-block:-2px;inset-inline-start:var(--tol);width:1px;background:var(--survey)}
+.ba .t{color:var(--truth);font-size:.78rem}
+.ba-sum{margin-top:10px;font-size:.86rem;color:var(--ink-2)}
+.ba-sum b{color:var(--survey)} .ba-sum b.no{color:var(--signal)}
 
 .pipeline{position:absolute;inset-inline:0;bottom:0;display:flex;gap:2px;padding:10px 12px;
   background:linear-gradient(transparent,rgba(10,16,22,.92) 40%)}
@@ -145,7 +169,12 @@ td.num{text-align:end}
     <div class="overlay" id="tags"></div>
     <div class="verdict" id="verdict"><div class="big">ממתין</div><div class="why">לחץ "התחל יישור"</div></div>
     <label class="exag">הגדלת זוויות ×<span id="exv" class="num">20</span> <input id="exag" type="range" min="1" max="60" value="20"></label>
-    <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח – כאן הן צבועות.</div>
+    <div class="views" id="views" role="group" aria-label="זווית מבט">
+      <button data-v="overview" aria-pressed="true">מבט כללי</button><button data-v="side">מהצד</button>
+      <button data-v="top">מלמעלה</button><button data-v="radar">מאחורי המכ"ם</button><button data-v="horn">יחידת ה-PSD</button>
+    </div>
+    <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div></div>
+    <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.</div>
     <div class="pipeline" id="pipeline"></div>
   </section>
 
@@ -189,6 +218,7 @@ td.num{text-align:end}
         <button class="btn primary" id="start">התחל יישור</button>
         <button class="btn" id="stop">עצור</button>
         <button class="btn" id="newsetup">הצבה חדשה</button>
+        <button class="btn tour" id="tour" aria-pressed="false">הדגמה מודרכת</button>
       </div>
       <h2>הפרעות</h2>
       <div class="ctlrow"><span class="ctl-label">רוח</span><input id="wind" type="range" min="0" max="3" step="0.25" value="1"><span id="windv" class="num">1×</span></div>
@@ -217,7 +247,7 @@ td.num{text-align:end}
     </section>
     <section class="card" aria-label="לפני ואחרי">
       <h2>לפני ואחרי<small>R5</small></h2>
-      <div id="ba" class="facts" style="font-size:.9rem"></div>
+      <div id="ba"></div>
     </section>
     <section class="card" aria-label="יומן">
       <h2>יומן אירועים</h2>
@@ -250,7 +280,7 @@ async function cmd(name, value=null){
   await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,value})});
 }
 $('start').onclick=()=>cmd('start');
-$('stop').onclick=()=>cmd('stop');
+$('stop').onclick=()=>{ if (typeof tourRun!=='undefined' && $('tour').getAttribute('aria-pressed')==='true'){ tourRun++; caption(null) } cmd('stop') };
 $('newsetup').onclick=()=>{hist=[];cmd('new_setup')};
 $('knockh').onclick=()=>cmd('push','horn');
 $('knockr').onclick=()=>cmd('push','radar');
@@ -425,18 +455,48 @@ function applyPose(m){
   placeTag('tagH', hc.clone().add(new THREE.Vector3(0,.45,0)), 'שופר');
   placeTag('tagR', ref.clone().add(new THREE.Vector3(0,.55,0)), 'מכ"ם');
   placeTag('tagD', new THREE.Vector3(DS/2, .05, .9), `${m.distance_m} מ'`);
+  const eB = emitters.B.getWorldPosition(new THREE.Vector3()), pB = psdMesh.B.getWorldPosition(new THREE.Vector3());
+  placeTag('tagE', eB.add(new THREE.Vector3(0,.2,0)), '3 לייזרים 960 nm + מצלמה', true);
+  placeTag('tagP', pB.add(new THREE.Vector3(0,.2,0)), 'PSD A · B (עדשה) · C', true);
 }
-function placeTag(id, v, text){
-  let el = $(id); if(!el){el=document.createElement('div');el.id=id;el.className='tag3d';$('tags').appendChild(el)}
+function placeTag(id, v, text, small=false){
+  let el = $(id); if(!el){el=document.createElement('div');el.id=id;el.className='tag3d'+(small?' small':'');$('tags').appendChild(el)}
   const p = v.clone().project(cam), r = canvas.getBoundingClientRect();
-  el.style.left = ((p.x+1)/2*r.width)+'px'; el.style.top = ((1-p.y)/2*r.height)+'px'; el.textContent = text;
+  const x = (p.x+1)/2*r.width, y = (1-p.y)/2*r.height;
+  el.style.display = (p.z>1 || x<20 || x>r.width-20 || y<20 || y>r.height-60) ? 'none' : '';
+  el.style.left = x+'px'; el.style.top = y+'px'; el.textContent = text;
 }
+// camera presets, eased; any drag cancels the preset
+const VIEWS = {
+  overview:{p:[2.3,2.6,4.6], t:[2.5,1.0,0]},
+  side:    {p:[2.5,1.35,5.4], t:[2.5,1.15,0]},
+  top:     {p:[2.5,6.8,0.5], t:[2.5,1.1,0]},
+  radar:   {p:[DS+1.5,1.85,0.45], t:[0,1.15,0]},
+  horn:    {p:[0.95,1.5,0.95], t:[0.1,1.15,0]},
+};
+let tween = null;
+function setView(name){
+  const v = VIEWS[name]; if (!v) return;
+  tween = {t0:performance.now(), p0:cam.position.clone(), q0:orbit.target.clone(),
+    p1:new THREE.Vector3(...v.p), q1:new THREE.Vector3(...v.t)};
+  $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===name)));
+}
+function stepTween(){
+  if (!tween) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const k = reduce ? 1 : Math.min(1, (performance.now()-tween.t0)/900), e = 1-Math.pow(1-k,3);
+  cam.position.lerpVectors(tween.p0, tween.p1, e); orbit.target.lerpVectors(tween.q0, tween.q1, e);
+  if (k>=1) tween = null;
+}
+$('views').querySelectorAll('button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+orbit.addEventListener('start', ()=>{ tween=null;
+  $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false')) });
 function resize(){
   const r = canvas.parentElement.getBoundingClientRect();
   renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
-function loop(){ orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
+function loop(){ stepTween(); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
 // ------------------------------------------------------------------ 2D canvases
@@ -551,14 +611,91 @@ function servos(m){
   const i=m.incl;
   $('incl').innerHTML=`מד זווית שופר: tilt <span class="num">${fmt(i.horn_tilt,3)}°</span>, roll <span class="num">${fmt(i.horn_roll,3)}°</span><br>מד זווית מכ"ם: tilt <span class="num">${fmt(i.radar_tilt,3)}°</span>, roll <span class="num">${fmt(i.radar_roll,3)}°</span>`;
 }
+// log scale 0.001..1 deg so the before (~1 deg) and after (~0.01 deg) share one axis
+const LOGW = v => Math.max(0, Math.min(1, (Math.log10(Math.max(Math.abs(v),1e-3))+3)/3))*100;
+const TOLW = LOGW(TOL);
+function baCell(v, t, after){
+  const col = Math.abs(v) < TOL ? (after ? C.survey : C.ink2) : C.signal;
+  return `<div class="cell"><span class="num">${after ? v.toFixed(4) : fmt(v,3)}°</span>
+    <div class="bar" style="--tol:${TOLW}%"><i style="width:${LOGW(v)}%;background:${col}"></i></div>
+    <span class="t num">אמת ${after ? t.toFixed(4) : fmt(t,3)}°</span></div>`;
+}
 function beforeAfter(m){
-  const el=$('ba'); if(!m.before){el.textContent='יופיע אחרי המדידה הראשונה ב-ALIGN.';return}
-  const b=m.before.est, bt=m.before.true;
-  let h=`<b>לפני</b> (PSD): מכ"ם <span class="num">${fmt(b[2])}/${fmt(b[3])}°</span>, שופר <span class="num">${fmt(b[0])}/${fmt(b[1])}°</span><br><span style="color:var(--truth)">אמת: מכ"ם <span class="num">${fmt(bt[2])}/${fmt(bt[3])}°</span>, שופר <span class="num">${fmt(bt[0])}/${fmt(bt[1])}°</span></span>`;
-  if (m.after){const a=m.after.reported.score, at=m.after.truth.score;
-    h+=`<br><br><b>אחרי</b> |mean|+2σ (Az,El): מכ"ם <span class="num">${a[2].toFixed(4)}/${a[3].toFixed(4)}°</span>, שופר <span class="num">${a[0].toFixed(4)}/${a[1].toFixed(4)}°</span><br><span style="color:var(--truth)">אמת: מכ"ם <span class="num">${at[2].toFixed(4)}/${at[3].toFixed(4)}°</span>, שופר <span class="num">${at[0].toFixed(4)}/${at[1].toFixed(4)}°</span> ${m.after.truth_pass?'– עובר':'– לא עובר (שאריות כיול; ראו "כיול אידיאלי")'}</span>`}
+  const el=$('ba'); if(!m.before){el.innerHTML='<div class="facts">יופיע אחרי המדידה הראשונה ב-ALIGN.</div>';return}
+  const b=m.before.est.slice(), bt=m.before.true.slice(), a=m.after && m.after.reported.score, at=m.after && m.after.truth.score;
+  // The emitter's error is measured by the camera before the coarse pointing and the
+  // scan; by the time the PSDs see the beam it is already small. Show the camera one.
+  const bc = m.before_camera, src = {};
+  if (bc) bc.axes.forEach((ax,j)=>{ b[ax]=bc.est[j]; bt[ax]=bc.true[j]; src[ax]='מצלמה' });
+  const rows=[['מכ"ם Az',2],['מכ"ם El',3],['שופר Az',0],['שופר El',1]];
+  let h=`<div class="ba"><span></span><span class="h">לפני (שגיאה מדודה)</span><span class="h">אחרי (|mean|+2σ)</span>`;
+  for (const [name,i] of rows)
+    h+=`<span>${name}<br><span class="h">${src[i]||'PSD'}</span></span>${baCell(b[i],bt[i],false)}${a?baCell(a[i],at[i],true):'<span class="h">…</span>'}`;
+  h+='</div>';
+  if (a){
+    const gain = Math.max(...b.slice(0,4).map(Math.abs)) / Math.max(...a);  // worst axis before / worst after
+    h+=`<div class="ba-sum">שיפור ×<span class="num">${gain.toFixed(0)}</span> · אמת: <b class="${m.after.truth_pass?'':'no'}">${m.after.truth_pass?'עובר':'לא עובר (שאריות כיול; ראו "כיול אידיאלי")'}</b>`
+      + ` · כולל U<sub>bias</sub>: <b class="${m.after.pass_with_bias?'':'no'}">${m.after.pass_with_bias?'עובר':'לא מובטח'}</b><br><span style="color:var(--ink-3);font-size:.76rem">סקאלה לוגריתמית 0.001°–1°, הקו הצהוב = 0.05°</span></div>`;
+  }
   el.innerHTML=h;
 }
+
+// ------------------------------------------------------------------ guided tour
+// Drives the same /api/command endpoints as the buttons; waits in SIMULATION time.
+let tourRun = 0;
+const cap = $('caption');
+function caption(title, text, step){
+  if (!title){cap.classList.remove('on');return}
+  cap.querySelector('b').textContent=title; cap.querySelector('span').textContent=text; cap.querySelector('.step').textContent=step||'';
+  cap.classList.add('on');
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+async function until(id, pred, simTimeout){
+  const t0 = M ? M.t : 0;
+  while (tourRun===id){
+    if (M && pred(M)) return true;
+    if (M && M.t - t0 > simTimeout) return false;
+    await sleep(120);
+  }
+  throw 'aborted';
+}
+const simWait = (id, dt) => { const t0 = M ? M.t : 0; return until(id, m => m.t - t0 >= dt, dt + 1) };
+const settled = m => m.state==='TRACK' && m.aligned && !m.klt_bridge;
+async function tour(){
+  const id = ++tourRun; $('tour').setAttribute('aria-pressed','true'); $('tour').textContent='עצור הדגמה';
+  const N = 7, S = i => `שלב ${i} מתוך ${N}`;
+  try{
+    if (M && M.radar_gap) await cmd('gap', false);
+    hist=[]; await cmd('new_setup'); setView('overview');
+    caption('הצבה ידנית', 'שני הצדדים הוצבו ביד: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1));
+    await simWait(id, 0.5); await sleep(2500);
+    await cmd('start');
+    caption('יישור אוטונומי', 'כיול, פילוס, איתור במצלמה, סריקת raster ו-PID עד אימות של 5 שניות.', S(2));
+    let lastState = '';
+    await until(id, m => {
+      if (m.state !== lastState){ lastState = m.state;
+        if (m.state==='SCAN') setView('top'); if (m.state==='ALIGN') setView('horn'); if (m.state==='VERIFY') setView('side');
+        if (PIPE.includes(m.state)) caption(`יישור אוטונומי · ${STATE_HE[m.state]}`, STATE_WHY[m.state], S(2)); }
+      return settled(m) }, 120);
+    setView('overview');
+    caption('מיושר', 'המערכת במעקב: השופר מתקן ברציפות, המכ"ם בבלם ומנוטר.', S(3));
+    await simWait(id, 6);
+    caption('מכה בחצובת השופר', 'השופר זז. PSD-B רואה את השינוי והשופר לבדו חוזר לאפס.', S(4));
+    await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
+    caption('חסימה קצרה של הקרן', 'מישהו עובר בקו. ה-KLT במצלמה מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
+    await cmd('block',0.6); await simWait(id, 1); await until(id, settled, 20); await simWait(id, 3);
+    caption('מכה בחצובת המכ"ם', 'המכ"ם בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(6));
+    await cmd('push','radar'); await simWait(id, 5);
+    caption('חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(7));
+    await cmd('gap', true); await simWait(id, 1); await until(id, settled, 60); await cmd('gap', false);
+    await simWait(id, 3);
+    caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
+    await sleep(6000);
+  } catch(e){ if (e!=='aborted') console.error(e) }
+  if (tourRun===id){ tourRun++; caption(null) }
+  $('tour').setAttribute('aria-pressed','false'); $('tour').textContent='הדגמה מודרכת';
+}
+$('tour').onclick = () => { if ($('tour').getAttribute('aria-pressed')==='true'){ tourRun++; caption(null) } else tour() };
 function pipeline(m){
   const idx = PIPE.indexOf(m.state);
   pipe.querySelectorAll('.st').forEach((d,i)=>{d.className='st'+(m.state==='FAULT'?'':i<idx?' done':i===idx?' now':'')});
