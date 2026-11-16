@@ -84,6 +84,7 @@ class RangefinderCfg:
 
 @dataclass(frozen=True)
 class ControlCfg:
+    roll_from_inclinometers: bool
     deadband_deg: float
     kp: float
     ki: float

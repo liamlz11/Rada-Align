@@ -284,13 +284,14 @@ class PsdController:
             return
         self.use = ("A", "B", "C") if use_c else ("A", "B")
         m = np.mean([b[0] for b in good], axis=0)
-        e = self.est_model.estimate(m, self.use)
+        inc = self.w.read_inclinometers()
+        e = self.est_model.estimate(m, self.use, inc)
         self.est = e
         if self.before is None:
             self.before = {"est": e.tolist(), "true": np.mean([b[2] for b in good], axis=0).tolist()}
             self._log("before: horn {:+.3f}/{:+.3f}, radar {:+.3f}/{:+.3f} deg".format(*e[:4]))
-        inc = self.w.read_inclinometers()
-        target = np.array([*e[:4], e[4] if "C" in self.use else 0.0, inc["radar_roll"]])
+        roll_known = "C" in self.use or self.cfg.control.roll_from_inclinometers
+        target = np.array([*e[:4], e[4] if roll_known else 0.0, inc["radar_roll"]])
         if self._side_only is not None:
             # re-centre during the test on one side only, then back to TRACK
             rows, srv, name = self._side_only
@@ -330,7 +331,7 @@ class PsdController:
     def _sample_errors(self, psd):
         use = self.use or ("A", "B")
         ok = all(psd[k].valid for k in use)
-        e = self.est_model.estimate(readings_vector(psd), use) if ok else None
+        e = self.est_model.estimate(readings_vector(psd), use, self.w.read_inclinometers()) if ok else None
         return ok, e
 
     def _s_verify(self, psd) -> None:

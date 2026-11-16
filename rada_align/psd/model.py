@@ -203,4 +203,8 @@ class Geometry:
         G = Jm @ np.linalg.pinv(Je)
         Jlev = jac(lambda s: np.array([self.gravity(s[:6])["radar_roll"]]), s0)
         Jj = np.vstack([Je[:, :6], Jlev[:, :6]]) * DEG  # per degree of servo angle
-        return {"Jm": Jm, "Je": Je, "G": G, "E": np.linalg.pinv(G), "Jj": Jj}
+        # relative roll (error 4) from the two inclinometer rolls:
+        # roll = c_h * horn_roll + c_r * radar_roll, by the roll servo of each side
+        Jhr = jac(lambda s: np.array([self.gravity(s[:6])["horn_roll"]]), s0)
+        roll_incl = (Je[4, 2] / Jhr[0, 2], Je[4, 5] / Jlev[0, 5])
+        return {"Jm": Jm, "Je": Je, "G": G, "E": np.linalg.pinv(G), "Jj": Jj, "roll_incl": roll_incl}

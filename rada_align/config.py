@@ -243,6 +243,10 @@ def _convert(tp, value, path: str):
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"config '{path}': expected an integer, got {value!r}")
         return value
+    if tp is bool:
+        if not isinstance(value, bool):
+            raise ValueError(f"config '{path}': expected true/false, got {value!r}")
+        return value
     if tp is str:
         if not isinstance(value, str):
             raise ValueError(f"config '{path}': expected a string, got {value!r}")

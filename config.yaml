@@ -130,9 +130,10 @@ psd:
     emitter: radar                     # DESIGN (Liam, 2026-11-16): lasers + camera on the radar, PSDs on the horn (laser points away from the person aiming the radar)
     horn_lever_m: [0.10, 0.0, 0.0]     # [repo] geometry.horn_pivot_to_center_m: pivot -> horn centre, body [fwd, left, up]
     radar_lever_m: [0.10, 0.0, 0.30]   # ASSUMPTION - replace with datasheet/measurement (radar reference vs its tilt pivot)
-    laser_a_m: [-0.15, 0.10]           # ASSUMPTION - replace with datasheet/measurement (emitter body [left, up]); PSD-A at the mirror position on the receiver
-    laser_b_m: [0.15, 0.10]            # ASSUMPTION - replace with datasheet/measurement
-    laser_c_m: [0.0, -0.10]            # ASSUMPTION - replace with datasheet/measurement
+    # DESIGN (Liam, 2026-11-16): both units hang BELOW the radar / the horn (negative 'up'), not on them.
+    laser_a_m: [-0.15, -0.40]          # ASSUMPTION - replace with datasheet/measurement (emitter body [left, up] from the radar reference); PSD-A at the mirror position below the horn centre
+    laser_b_m: [0.15, -0.40]           # ASSUMPTION - replace with datasheet/measurement
+    laser_c_m: [0.0, -0.58]            # ASSUMPTION - replace with datasheet/measurement
     setup_pointing_deg: 1.0            # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per servo axis)
     setup_roll_deg: 0.5                # ASSUMPTION - replace with datasheet/measurement
     setup_offset_m: 0.25               # ASSUMPTION - replace with datasheet/measurement (relative horn position, uniform +/-, field)
@@ -175,6 +176,7 @@ psd:
   rangefinder:
     sigma_m: 0.05                      # ASSUMPTION - replace with datasheet/measurement
   control:
+    roll_from_inclinometers: true      # DESIGN (2026-11-16, units below the axes): relative roll from the two inclinometers; PSD A/C solve Az/El only, PSD-C is the cross-check
     deadband_deg: 0.01                 # DESIGN
     kp: 1.0                            # DESIGN: ALIGN gain on the decoupled errors
     ki: 0.0                            # DESIGN

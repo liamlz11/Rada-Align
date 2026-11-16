@@ -19,6 +19,9 @@ class PsdEstimator:
         lin = geo_nominal.jacobians()
         self.G = lin["G"]
         self.Jj = lin["Jj"]
+        self.roll_incl = lin["roll_incl"]
+        self.roll_from_incl = geo_nominal.cfg.control.roll_from_inclinometers
+        self._cache4: dict[tuple[str, ...], np.ndarray] = {}
         self._cache: dict[tuple[str, ...], np.ndarray] = {}
 
     def estimator_for(self, use: tuple[str, ...]) -> np.ndarray:
@@ -28,6 +31,19 @@ class PsdEstimator:
             E[:, rows] = np.linalg.pinv(self.G[rows])
             self._cache[use] = E
         return self._cache[use]
+
+    def estimator4_for(self, use: tuple[str, ...]) -> np.ndarray:
+        """Az/El errors only (4 x 6); roll is supplied by the inclinometers."""
+        if use not in self._cache4:
+            rows = [r for k in use for r in ROWS[k]]
+            E = np.zeros((4, 6))
+            E[:, rows] = np.linalg.pinv(self.G[rows][:, :4])
+            self._cache4[use] = E
+        return self._cache4[use]
+
+    def roll_from_inclinometers(self, inc: dict) -> float:
+        """Relative roll (deg) from the two gravity rolls."""
+        return self.roll_incl[0] * inc["horn_roll"] + self.roll_incl[1] * inc["radar_roll"]
 
     def u_bias_deg(self, use: tuple[str, ...]) -> np.ndarray:
         """Expanded (k = 2) calibration uncertainty per Az/El error axis, in degrees.
@@ -40,7 +56,7 @@ class PsdEstimator:
         board, b_null = unit_sigmas_deg(cfg, self.geo.emitter)
         diff = cfg.laser.differential_sigma_deg
         pos = cfg.calib.psd_position_sigma_mm
-        E = self.estimator_for(use)
+        E = self.estimator4_for(use) if self.roll_from_incl else self.estimator_for(use)
         z6, z4 = np.zeros(6), np.zeros(4)
         r0 = self.geo.readings_vector(z6, z4)
 
@@ -61,11 +77,24 @@ class PsdEstimator:
                 mm[ax] = 1.0
                 shifted = Biases(psd_pos_mm={j: (tuple(mm) if j == k else (0.0, 0.0)) for j in PSDS})
                 var += (effect(shifted) * pos) ** 2
+        if self.roll_from_incl:
+            # inclinometer roll bias (one per side) through the units' lever below the axis
+            s = cfg.inclinometer.bias_sigma_deg
+            per_deg = E @ self.G[:, 4]
+            var += (per_deg * s * self.roll_incl[0]) ** 2 + (per_deg * s * self.roll_incl[1]) ** 2
         return 2.0 * np.sqrt(var)
 
-    def estimate(self, readings: np.ndarray, use: tuple[str, ...]) -> np.ndarray:
-        """[eh_az, eh_el, er_az, er_el, roll] in degrees. Roll is only meaningful
-        when both A and C are used."""
+    def estimate(self, readings: np.ndarray, use: tuple[str, ...], inc: dict | None = None) -> np.ndarray:
+        """[eh_az, eh_el, er_az, er_el, roll] in degrees.
+
+        With `inc` (inclinometer readings) and control.roll_from_inclinometers the
+        roll comes from gravity and the PSDs solve Az/El only: the units hang below
+        the axes, so a roll error would otherwise leak into azimuth through that
+        lever. Without it roll is only meaningful when both A and C are used."""
+        if inc is not None and self.roll_from_incl:
+            roll = self.roll_from_inclinometers(inc)
+            e4 = self.estimator4_for(use) @ (readings - self.G[:, 4] * roll)
+            return np.array([*e4, roll])
         return self.estimator_for(use) @ readings
 
 

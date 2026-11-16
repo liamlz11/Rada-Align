@@ -153,7 +153,7 @@ def test_u_bias_matches_sampled_calibration_residuals():
     errs = []
     for seed in range(400):
         w = World(cfg, seed, 12.0)
-        errs.append((est.estimator_for(use) @ (est.geo.readings_vector(z6, z4, w.bias) - r0))[:4])
+        errs.append(est.estimator4_for(use) @ (est.geo.readings_vector(z6, z4, w.bias) - r0))  # roll from the inclinometers
     spread = 2 * np.std(errs, axis=0)
     assert np.allclose(spread, u, rtol=0.15)
     assert np.all(PsdEstimator(Geometry(QUIET, 12.0)).u_bias_deg(use) == 0)
