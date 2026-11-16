@@ -7,6 +7,11 @@ parts, and a table to decide in minutes once the parts are on the table.
 Sections 1 and 2 must be redone with the real parts; nothing here has been
 copied into config.yaml.
 
+**Final design (2026-11-16):** sections 1 and 2 (X/Z, steppers, matched
+camera/beacon offsets) are SUPERSEDED for the new rig and kept for history.
+The new parts list is section 4 below and docs/FINAL_DESIGN.md section 9. The
+datasheet facts in section 3 (rangefinder range, inclinometer offset) still hold.
+
 All resolution numbers come from `python scripts/rig_resolution.py` (default
 2 m and 12 m; pass other distances as arguments). The parts in that script are
 generic candidates, each an ASSUMPTION about a typical part.
@@ -187,3 +192,27 @@ not researched except where a source is given; treat every price as
   real numbers, add dimensions measured on the built rig, and copy the real
   values into config.yaml with their source.
 - A measured centroid sigma for the real camera (task 4).
+
+## 4. Final design parts (2026-11-16)
+
+Prices are the team's rough figures [team, unverified] unless a source is
+given. Specs from docs/FINAL_DESIGN.md.
+
+| # | Part | Qty | Role | Spec that matters | 2 m demo | Field 10-15 m |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Servo with optical encoder + driver | 6 | horn and radar Pan/Tilt/Roll | >= 0.001 deg per count at the output, low backlash, brake on the radar axes | same | same |
+| 2 | Radar mount Pan/Tilt/Roll | 1 | carries 35 kg | CG on the axes; 10.3-34.3 N m for CG 3-10 cm off axis (arith) | radar mock-up | 35 kg |
+| 3 | Horn mount Pan/Tilt/Roll | 1 | mechanics | pivot near the aperture centre; travel >= +/-5 deg | same | same |
+| 4 | Dual-axis inclinometer | 2 | gravity, roll, R3 | accuracy, not resolution (section 3) | same | same |
+| 5 | 2D PSD + front end | 3 | A, B (lens), C | S5991-01: 9 x 9 mm, 960 nm peak, 0.6 A/W, 1.5 um, +/-150 um, Isat 500 uA [datasheet] | S5991-01 is enough | A and C >= 20 mm (OSI DL-20 [vendor page]) or diffuser |
+| 6 | Laser on the common board | 3 | light source | Class 1 at 960 nm, focusable 10 mm beam, attenuated to ~0.1 mW; invar/CFRP board | same | same |
+| 7 | Raster scan | 0 | capture | horn servos, no separate scanner (Liam, 2026-11-16) | - | - |
+| 8 | Camera with optical zoom | 1 | acquisition, KLT, UI | sees 960 nm or has a visible aid | webcam may do | zoom camera |
+| 9 | Laser rangefinder | 1 | d | 10-15 m range | tape | rangefinder |
+| 10 | ADC | 1 | PSD readout | 12 channels, 16-bit, >= 40 kS/s each | same | same |
+| 11 | Controller | 1 | state machine, PID, UI | - | laptop | field PC |
+| 12 | Calibration kit | 1 | CALIB | horn axis reference, targets | same | same |
+| 13 | Cables, power, enclosures | - | infrastructure | cabled only | - | field grade |
+
+Sums of the team ranges [arith]: USD 8,860-44,100; the high end exceeds the
+USD 30k budget. Task 3 item 4 produces a <= 30k configuration from datasheets.

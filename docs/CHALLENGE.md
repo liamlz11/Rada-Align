@@ -39,6 +39,16 @@ Design an autonomous, automatic system to align a horn antenna to a radar in a f
 - R10 suit field conditions and give a clear indication that alignment is complete
 - R11 keep accurate pointing throughout the test, with automatic real-time correction
 
+## Final design (2026-11-16)
+The team closed the design: **Raster Scan + PSD + KLT**. Description, engineering checks and numbers: docs/FINAL_DESIGN.md (source of truth).
+- 3 lasers on one board on the horn, parallel to its axis; 3 PSDs on the radar datum. PSD-A (no lens) reads the horn error; PSD-B (lens, focal plane) reads the beam angle, so radar error = B/f + horn error; PSD-C gives relative roll.
+- Both sides rotate: 6 servos with optical encoders (Pan/Tilt/Roll on each side). No X/Z: the height difference (R3) is measured and reported, not removed.
+- The radar moves only in ALIGN, before the test; during the test it is braked and monitored.
+- The camera (optical zoom) only finds the PSDs (template matching), tracks with KLT as a backup and feeds the UI.
+- Flow: CALIB -> SETUP -> ACQUIRE -> SCAN (raster with the horn Pan/Tilt) -> ALIGN (PID per axis) -> VERIFY -> TRACK, plus FAULT.
+
+Below, the sections on mutual sighting, X/Z travel, steppers, the operating flow and the camera error budget are SUPERSEDED and kept for history. The geometry, the two errors, the target-simulator section and the mentor facts still hold.
+
 ## Engineering analysis (our team)
 
 ### Geometry
@@ -58,7 +68,7 @@ Insights:
 - Elevation vs gravity is easy: a dual-axis inclinometer is at the ~0.005 deg level.
 - A 1.55 um pixel with a 25 mm lens = 0.0036 deg/px; subpixel centroiding reaches ~0.001 deg.
 
-### Preliminary error budget (per axis, RSS; ESTIMATES, to be replaced by measurements)
+### Preliminary error budget (per axis, RSS; ESTIMATES, to be replaced by measurements) – SUPERSEDED: see docs/FINAL_DESIGN.md 7.7
 | Source | deg |
 | --- | --- |
 | Camera-to-radar-datum calibration (dominant) | 0.015 |
@@ -76,19 +86,20 @@ Conclusion: sensors are not the problem. Transferring the radar's mechanical ref
 ### Measurement options
 | Method | Az | El | Typical accuracy | Decision |
 | --- | --- | --- | --- | --- |
-| Camera + LED beacon (mutual sighting) | yes | yes | 0.001-0.005 deg | core |
-| Laser + position detector (PSD/target) | yes | yes | high | alternative / operator visual |
+| Camera + LED beacon (mutual sighting) | yes | yes | 0.001-0.005 deg | acquisition + KLT backup only (final design) |
+| Laser + position detector (PSD/target) | yes | yes | high | core (final design) |
 | Dual-axis inclinometer | no | yes | ~0.005 deg | complements El and roll |
 | GNSS heading / compass | no | no | tenths of deg and worse | rejected |
 | Total station / theodolite | yes | yes | arcseconds | ground truth for validation only |
 | Independent RF receiver at horn (beam peak search) | yes | yes | limited by beamwidth | phase 2, ask RADA |
 
-### Architecture
+### Architecture (SUPERSEDED 2026-11-16, see "Final design")
 1. Radar reference head (RRH): clamped to the radar's mechanical datum. Narrow-FOV camera, IR beacon, inclinometer. Kept out of the radar aperture (RF reflections).
 2. Motorized horn head: horn on a 4-axis mount: Z lift, X lateral, Pan, Tilt. Camera, IR beacon, inclinometer, rangefinder.
 3. Controller: Raspberry Pi / laptop for vision and estimation; ESP32 for steppers.
 4. Operator UI: before/after error, live state, ALIGNED indicator, log and report.
 
+SUPERSEDED 2026-11-16: the final design rotates both sides and has no X/Z (docs/FINAL_DESIGN.md section 2, conflicts C1 and C2).
 Which side moves: Option A (chosen) radar fixed, horn moves X/Z onto the radar axis then Pan/Tilt back; +/-1 deg at 12 m = +/-21 cm, so ~+/-25 cm travel. Option B: radar on a motorized Az/El positioner if RADA has one.
 Confirmed by the mentor (2026-11-16): the radar is aligned once before the test and is static during it, so Option A holds. No positioner was mentioned. Travel check: +/-250 mm covers 1.43 deg at 10 m, 1.19 deg at 12 m, 0.95 deg at 15 m; a 1 deg error at 15 m needs 262 mm, so the field mount needs about +/-400 mm (1.53 deg at 15 m). Option B stays a field option within the budget (ASSUMPTION).
 
@@ -107,9 +118,9 @@ The radar transmits; the horn receives and passes the signal by cable to the tar
 - Angle: NOT set by the simulator. The radar sees the target where the horn physically is.
 Delay, Doppler, amplitude and cable losses are DRS's. The angle is ours: alignment guarantees the simulated target appears at Az = 0, El = 0 relative to the radar's mechanical axis within +/-0.05 deg. Radar error moves the reported angle; horn pointing error changes only the returned power.
 
-Calibration of camera to radar axis: reversal method (rotate the fixture 180 deg about the reference axis, the mean is the true axis), or a one-time lab calibration against a theodolite/collimator. Lab calibration does not violate R8.
+Calibration of camera to radar axis (final design: the same methods apply to the PSD-B null, task 18): reversal method (rotate the fixture 180 deg about the reference axis, the mean is the true axis), or a one-time lab calibration against a theodolite/collimator. Lab calibration does not violate R8.
 
-### Operating flow
+### Operating flow (SUPERSEDED, see docs/FINAL_DESIGN.md section 5)
 1. Coarse manual setup (+/-1 deg is enough), mount RRH on the datum.
 2. Self-check: sensors, calibration file loaded, link between heads.
 3. Acquire: each camera finds the other beacon (blinking LED synced with frames; on-minus-off frame difference removes sun and background). Spiral search with Pan/Tilt if not found.
@@ -124,7 +135,7 @@ eps_Az = atan((u - cx) / f) - delta_Az - s_x / d
 eps_El = atan((v - cy) / f) - delta_El - s_y / d
 dh = d * tan(eps_El_radar). Filter with a moving average or simple Kalman, with a deadband so motors do not chase wind.
 
-### Suggested hardware (verify against datasheets)
+### Suggested hardware (verify against datasheets) – SUPERSEDED, see docs/FINAL_DESIGN.md section 9
 | Part | Suggestion | Why |
 | --- | --- | --- |
 | Camera x2 | Raspberry Pi HQ Camera or USB3 industrial camera, 25-50 mm lens | ~0.002-0.004 deg/px |
@@ -151,3 +162,7 @@ Do NOT use hobby servos (SG90/MG996): resolution ~1 deg, 20x the budget.
 | Ground vibration (generators, vehicles) | 10 Hz camera aliases motion above 5 Hz into slow apparent motion; faster global-shutter camera or short exposure; measure |
 | Dust on lenses | asymmetric spot biases the centroid; lens covers, watch blob circularity over time |
 | Radio near a C-band radar | 5 GHz WiFi is inside 4-8 GHz; all links cabled |
+| Laser board bending in the sun (final design) | 1 K through a 10 mm aluminium board over 200 mm = 0.026 deg (arith); invar or CFRP board, shade (FINAL_DESIGN 7.4) |
+| Spot leaves the PSD in gusts at 12-15 m (final design) | 3 sigma of the assumed wind needs a 21-26 mm PSD; 20 mm PSD or diffuser; measure the horn-mount sway (FINAL_DESIGN 7.1) |
+| Sun DC saturates the PSD (final design) | hood, narrow band-pass, AC-coupled front end, lock-in (FINAL_DESIGN 7.6) |
+| Eye safety (final design) | Class 1 at 960 nm, attenuated to about 0.1 mW (FINAL_DESIGN C7, 7.6) |

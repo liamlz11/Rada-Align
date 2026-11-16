@@ -210,3 +210,10 @@ Template:
 - KLT [scratch, synthetic, 300 trials per row]: shift rms in px, centroid / KLT: noise 0: 0.0031 / 0.0059 (2.5 px spot), 0.0031 / 0.0209 (1.2 px); noise 2: 0.0223 / 0.0230, 0.0229 / 0.0315; noise 5: 0.0535 / 0.0541, 0.0515 / 0.0578. OpenCV phase correlation 0.14-0.40, probably a test artefact. Phase correlation and KLT are not in the repo; the friend's data is not available here.
 - Tests: `.venv/Scripts/python.exe -m pytest -q` -> `114 passed, 1 warning in 11.63s`.
 - Open: friend's KLT code and numbers; Q19 (real manual setup error), Q20 (radar aperture), Q21 (status signal for auto-hold); task 6 build (exit 4) still undiagnosed; task 8 next.
+
+## 2026-11-16 – Final design adopted (Raster Scan + PSD + KLT), stage A docs
+- Built: docs/FINAL_DESIGN.md (source of truth: D1-D12, PSD roles, sketch, state machine, conflicts C1-C11, engineering checks 1-8, error budget, BOM, raw numbers output). scripts/final_design_numbers.py (numpy only; 3D laser/PSD model, Jacobian, rank, spot size, raster times, thermal, encoders, PSD noise, budget). Doc diff applied on Liam's OK: CLAUDE.md, CHALLENGE.md, TASKS.md (status per task, new tasks 13-20), RIG.md (section 4), OPEN_QUESTIONS.md (Q22-Q29), MENTOR_FEEDBACK.md (update 3). Old architecture marked superseded, nothing deleted.
+- Team decisions (Liam): continuous PSD; laser board manual in CALIB; raster with the horn servos; radar moves before the test and in gaps only; laser 960 nm Class 1 focusable; laptop for demo, industrial PC for field; servos not chosen (propose in task 3).
+- Key numbers [sim/arith, scripts/final_design_numbers.py]: rank 5 of 6 servos, all 5 errors observable; decoupled loop converges in 3-4 iterations; 9 mm PSD fine at 2 m, 12-15 m needs 21-26 mm under the assumed wind; raster +/-0.25 deg at 12 m = 5.9 s; radar-error RSS 0.0248 deg (same as the old budget).
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> `114 passed, 1 warning`.
+- Open: Q23 (radar tilt, DRS), Q1/Q11 (datum), Q27 (camera at 960 nm), field PSD size. Next: demo track = tasks 13, 14 (basic), 15, 19.

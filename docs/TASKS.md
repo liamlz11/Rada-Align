@@ -4,29 +4,41 @@ Rules for every task: see "How we work" in CLAUDE.md. Plan first, wait for OK, b
 Items in [BRACKETS] are details to ask me for if they are still unfilled.
 Suggested effort: high by default; xhigh for tasks 1, 2 (planning) and 5.
 
-- [ ] 0. Repo setup
-- [x] 1. Design review (red team)
-- [x] 2. Simulator and control core
-- [ ] 3. Demo rig and parts
-- [ ] 4. Camera beacon detection
-- [ ] 5. Camera-to-datum calibration
-- [ ] 6. ESP32 firmware + driver
-- [x] 7. Operator dashboard
-- [ ] 8. Integration and tabletop demo
-- [ ] 9. Validation suite R1-R11
-- [ ] 10. Update from mentor answers
-- [ ] 11. Pitch deck content
-- [ ] 12. Demo script and Q&A
+Final design 2026-11-16 (docs/FINAL_DESIGN.md): every task carries its status: STAYS, CHANGES, or REPLACED by a new task. Nothing is deleted; superseded code stays and its tests keep passing.
+
+- [ ] 0. Repo setup (STAYS)
+- [x] 1. Design review (red team) (STAYS)
+- [x] 2. Simulator and control core (CHANGES: core reused by task 13)
+- [ ] 3. Demo rig and parts (CHANGES: servos, lasers, PSDs)
+- [ ] 4. Camera beacon detection (CHANGES: acquisition only; KLT moves to task 16)
+- [ ] 5. Camera-to-datum calibration (REPLACED by task 18)
+- [ ] 6. ESP32 firmware + driver (REPLACED by task 17)
+- [x] 7. Operator dashboard (CHANGES: task 19)
+- [ ] 8. Integration and tabletop demo (CHANGES)
+- [ ] 9. Validation suite R1-R11 (STAYS, tests 7 and 8 change)
+- [ ] 10. Update from mentor answers (STAYS)
+- [ ] 11. Pitch deck content (CHANGES)
+- [ ] 12. Demo script and Q&A (STAYS)
+- [ ] 13. Laser and PSD model in the simulator
+- [ ] 14. PID and axis mapping
+- [ ] 15. Raster scan (SCAN)
+- [ ] 16. KLT and template matching
+- [ ] 17. Servo and encoder interface (mock)
+- [ ] 18. Laser and PSD calibration (CALIB)
+- [ ] 19. Field-engineer interface
+- [ ] 20. Tabletop demo parts
 
 ---
 
 ## 0. Repo setup
+**Final design: STAYS.** WSL verification still open.
 - `git init`, first commit with the existing files.
 - Python package skeleton `rada_align/` with `interfaces.py` (abstract Camera, Inclinometer, Rangefinder, Actuators), `config.yaml` (empty sections), `pyproject.toml` or `requirements.txt` (numpy, scipy, matplotlib, pyyaml, pytest), `tests/`.
 - Tell me how to create the venv on Windows and in WSL.
 Done when `pytest -q` runs (even with 0 tests) on both.
 
 ## 1. Design review (red team)
+**Final design: STAYS (done).** W1 (datum transfer, seat) and W2 (wind) still drive the budget; the camera-specific points are superseded.
 Act as a senior DRS RADA radar test-range engineer judging this hackathon. Using docs/CHALLENGE.md, write docs/REVIEW.md:
 1. The 5 weakest points that could make the system miss +/-0.05 deg in the field or violate "no radar data". For each: failure mechanism, error size it could cause (show the arithmetic), cheapest fix buildable by Monday.
 2. Which error-budget entries are optimistic and what to assume instead.
@@ -34,6 +46,7 @@ Act as a senior DRS RADA radar test-range engineer judging this hackathon. Using
 Skip anything that is fine. Then tell me in Hebrew which changes you propose to CLAUDE.md or the task list, and wait for my OK before applying them.
 
 ## 2. Simulator and control core
+**Final design: CHANGES (done for the old design).** geometry, disturbances, estimator windows, pass criterion and Monte Carlo against truth are reused by tasks 13-14; the camera/beacon measurement model and the X/Z controller are superseded.
 Modules in rada_align/:
 1. geometry - frames, line of sight, radar/horn Az-El errors, dx/dh, parallax correction.
 2. sensors - simulated Camera, Inclinometer, Rangefinder, Actuators: pixel model with focal length in px, centroid noise, calibration offset; inclinometer noise and bias; rangefinder noise.
@@ -47,6 +60,7 @@ STOP and ask if Monte Carlo p95 > 0.05 deg on any axis.
 Report: Monte Carlo table, measured vs preliminary budget, the 3 assumptions that drive the result most.
 
 ## 3. Demo rig and parts
+**Final design: CHANGES.** New BOM in docs/FINAL_DESIGN.md section 9 and docs/RIG.md section 4. Items 5 and 6 below (X/Z travel, radar positioner as an option) are superseded: the radar mount is BOM item 2. Item 4 now means a <= USD 30k configuration of the new BOM.
 Parts we have: [LIST OF PARTS]. Demo distance: 2 m (Liam, 2026-11-14).
 Write docs/RIG.md:
 1. The simplest rig from these parts: horn mock-up mount (all 4 axes or the subset we can motorize by Monday), radar reference head, rigid mounting of cameras and beacons. Text sketch with dimensions.
@@ -61,6 +75,7 @@ Added from mentor feedback (2026-11-16, docs/MENTOR_FEEDBACK.md):
 8. Backup sensors (laser + PSD, inclinometer El check) as options with their role.
 
 ## 4. Camera beacon detection
+**Final design: CHANGES.** The camera finds and tracks, it does not measure. Items 1-4 are reused for spot and target detection; item 5 (measure_stability) now measures the horn-mount sway, which decides the PSD size (FINAL_DESIGN 7.1); item 6 (KLT) moves to task 16.
 rada_align/vision/, implementing Camera:
 1. Capture: OpenCV VideoCapture, device index and resolution from config.yaml, fixed exposure where the driver allows.
 2. Beacon detection: ROI around last position, threshold, blob filter (size, circularity), reject saturated or multiple blobs. Frame differencing (LED on minus off) behind a flag.
@@ -74,6 +89,7 @@ Report the measured sigma.
 7. Lens choice: FOV vs resolution table in docs/MENTOR_FEEDBACK.md; consider a wide acquisition camera plus a narrow measuring camera.
 
 ## 5. Camera-to-datum calibration
+**Final design: REPLACED by task 18.** The reversal maths and the calibration-file refusal are reused for the PSD-B null.
 1. docs/CALIBRATION.md: reversal method (measure a distant target, rotate the head 180 deg about the datum axis, measure again; mean = true axis, half difference = camera offset delta) and ground-truth method (known offsets on a ruler/micrometer table at known distance), with distances and repetitions. The reversal is done on EVERY setup, not once in the lab (REVIEW W1).
 2. scripts/calibrate_reversal.py: guides the operator step by step, N measurements per position, computes delta_Az and delta_El with sigma, writes calib/datum.yaml.
 3. Add the reversal procedure to the simulator: recovers a known injected delta; residual calibration error vs N and centroid noise. Model an independent seat error at each of the two seatings and the lost matched-offset cancellation in the flipped position; the result sets u_delta_deg (U_bias) in calib/datum.yaml.
@@ -83,6 +99,7 @@ Report the measured sigma.
 Test: simulated reversal recovers the injected delta within the predicted sigma.
 
 ## 6. ESP32 firmware + driver
+**Final design: REPLACED by task 17.** Steppers + ESP32 are superseded by servos with encoders; the `pio run` failure no longer blocks anything.
 Hardware: board [ESP32 BOARD], drivers [TMC2209 / A4988 / OTHER], 4 steppers (X, Z, Pan, Tilt), limit switch per axis [YES/NO], e-stop button, IR beacon LED on a GPIO.
 Firmware in firmware/ (PlatformIO, Arduino framework, AccelStepper allowed):
 - Line-based serial protocol: MOVE <axis> <steps>, MOVETO <axis> <pos>, HOME <axis>, STOP, STATUS, SPEED <axis> <v> <a>, LED <on|off|blink hz>, PING. Every command answers OK or ERR with a reason. STATUS returns positions, moving flags, limits, e-stop.
@@ -93,6 +110,7 @@ Tests: driver against a mocked serial port incl. watchdog and errors. Firmware m
 STOP: do not flash. Give me the flash command and a Hebrew bench-test checklist, motors disconnected first.
 
 ## 7. Operator dashboard
+**Final design: CHANGES (done for the old design).** Server, session, schema and layout are reused by task 19.
 FastAPI + WebSocket backend, one static HTML/JS page (no build step, no framework). Hebrew UI, RTL, numbers left-to-right.
 Shows: big numbers (radar Az/El, horn Az/El, dx/dh in mm; green within 0.05 deg, red outside); bullseye plot with the 0.05 deg circle, current point and trail; convergence chart per axis; state, warning and fault reason; before/after of the last alignment; large ALIGNED indicator; buttons Start alignment, Stop, Re-align, Hold (toggle, calls Controller.set_hold; shown while active), Export report.
 Calibration uncertainty (REVIEW W1): per axis show `score_deg` and `score_with_bias_deg` with `u_bias_deg`. The ALIGNED indicator must distinguish `aligned` (measured criterion met) from `aligned_with_bias` (also met with calibration uncertainty); never show the strict state when only `aligned` is true.
@@ -101,6 +119,7 @@ Data: the simulator `--stream` now, the real controller later, one schema in doc
 Done when `python -m rada_align.ui` runs against the simulator and the page was checked in a browser.
 
 ## 8. Integration and tabletop demo
+**Final design: CHANGES.** hw mode uses servos, PSDs and lasers instead of camera measurement and the ESP32. Dry-run, logging and the STOP gate before motion are unchanged.
 1. config.yaml `mode: sim | hw`. hw mode uses the real Camera, ESP32 actuators, inclinometer if connected; anything missing stays simulated and shows SIM in the dashboard.
 2. Tabletop distance 2 m (Liam, 2026-11-14), same angular tolerance.
 3. Dry-run mode: compute and display corrections without moving motors.
@@ -110,6 +129,7 @@ STOP before the first real motor motion: show soft limits, max speeds, e-stop st
 Done when one ACQUIRE -> ALIGN -> VERIFY -> TRACK cycle runs on the real rig, or report exactly which step fails and why.
 
 ## 9. Validation suite R1-R11
+**Final design: STAYS.** Test 7 becomes "sun on the PSD unit"; test 8 also measures the beam leaving the PSD in wind; add the R3 report (height difference) and a check that the radar never moves during TRACK without an allowed gap.
 Runnable in sim and hw mode, scripts/validate/, each writes results/<test>.json:
 1. Static noise: 1,000 measurements, no motion -> sigma per axis. Target < 0.005 deg.
 2. Ground truth: known offsets on a ruler/micrometer table -> measured vs true. Target < 0.01 deg.
@@ -123,17 +143,62 @@ Runnable in sim and hw mode, scripts/validate/, each writes results/<test>.json:
 Targets are fixed. NEVER change a threshold to make a test pass.
 
 ## 10. Update from mentor answers
+**Final design: STAYS.** Update 3 (final design) is in docs/MENTOR_FEEDBACK.md.
 Started 2026-11-16: first mentor feedback and answers, gap analysis and applied changes are in docs/MENTOR_FEEDBACK.md (Liam approved "Yes, apply"). Remaining: the error-budget update with arithmetic once field numbers exist.
 When docs/OPEN_QUESTIONS.md has answers: write docs/DECISIONS.md with (1) which design decisions change, (2) the updated error budget with arithmetic, (3) proposed CLAUDE.md edits as a diff, (4) tasks to cut, add or reorder for the time left. Wait for my OK before applying.
 
 ## 11. Pitch deck content
+**Final design: CHANGES.** Slides 3-5 describe Raster Scan + PSD + KLT, not mutual sighting.
 Write docs/PITCH.md: content for 10 Hebrew slides, using only numbers from results/ and docs/:
 1 problem and why manual alignment fails; 2 the number: 0.05 deg = 10.5 mm at 12 m; 3 our approach: mutual optical sighting, no radar data; 4 architecture diagram (describe it); 5 the algorithm; 6 error budget preliminary vs measured; 7 live demo; 8 results R1-R11; 9 path from tabletop to field; 10 team and next steps.
 Missing result -> visible [TBD], never an invented number. List which plots from results/ go on which slide. (The deck itself is built in claude.ai from this file.)
 
 ## 12. Demo script and Q&A
+**Final design: STAYS.** Content follows the final design.
 Write docs/DEMO.md in Hebrew:
 1. A 3-minute demo script, minute by minute: what we say, what the dashboard shows, what moves.
 2. Fallback: if hardware fails mid-demo, switch to the simulator in under 30 seconds, and what we say.
 3. The 10 hardest judge questions (accuracy proof, calibration, wind, independence from radar data, cost, field readiness) with 2-sentence answers based only on results/REQUIREMENTS.md.
 4. A checklist for the last 15 minutes before the demo.
+
+## 13. Laser and PSD model in the simulator
+Start from the model in scripts/final_design_numbers.py (docs/FINAL_DESIGN.md 7.2).
+1. world/geometry: radar Pan/Tilt/Roll with lever arms, the laser board on the horn, PSD positions in the matched pattern, readings A, B (lens, focal plane) and C.
+2. sensors: SimPSD (Gaussian spot, D99 off the active area = invalid, saturation, sun DC, lock-in noise, detection-error map) and SimLaser (misalignment, thermal drift).
+3. config.yaml sections `laser:`, `psd:`, `servos:`; every value ASSUMPTION or [datasheet] with its source.
+Tests: readings are 0 at alignment; the 5 errors are recovered (rank 5); B does not change under a pure translation; spot off the PSD gives invalid; saturation is flagged.
+
+## 14. PID and axis mapping
+1. estimator: least-squares estimate of horn error, radar error and relative roll from the 6 readings; radar roll levelled by its inclinometer.
+2. A new controller module (the old one stays, superseded): ALIGN with one PID per axis (gains are DESIGN values, fixed before any result), deadband, horn and radar loops run together. TRACK policy: horn PID allowed; radar braked, monitored, alert above 0.03 deg, correction only in an allowed gap.
+3. Monte Carlo against truth at 2 m and 12 m: true pass rate, false accepts and reported pass rate.
+STOP and ask if the true pass rate is below the reported one or p95 > 0.05 deg on any axis.
+Tests: converges from +/-1 deg and +/-250 mm; the radar does not move in TRACK without a gap; FAULT at a travel limit with a reason.
+
+## 15. Raster scan (SCAN)
+Serpentine raster on the horn Pan/Tilt, step = PSD width at the PSD, window from the ACQUIRE accuracy; roll search if PSD-C is missing; window exhausted -> ACQUIRE. Scan-time table in docs/FINAL_DESIGN.md 7.3.
+Tests: capture time matches the table; no capture -> ACQUIRE with a reason. Scanner: the horn servos (Liam, 2026-11-16).
+
+## 16. KLT and template matching
+1. vision/templates.py: multi-scale template matching of the PSD unit, with a check against the known layout of the 3 housings.
+2. vision/track.py: pyramidal LK, forward-backward check, robust similarity fit, periodic re-confirmation, re-detect on loss (FINAL_DESIGN 7.8).
+3. Used for ACQUIRE and to bridge a short beam block in TRACK only; never for VERIFY.
+Ask for the friend's KLT data and code first; compare on the same frames against ground truth.
+Tests on synthetic frames: init finds the unit; a known shift is tracked; loss is detected; re-detect works.
+
+## 17. Servo and encoder interface (mock)
+1. interfaces: ServoAxis (move_to, encoder position, velocity, enable, brake, limits, status) and a group of 6.
+2. Mock: encoder quantization, backlash, brake, travel limits, watchdog.
+3. Real driver once the model and interface are known; 2-3 candidate models come from task 3 (Liam, 2026-11-16).
+STOP: no real motion without my explicit OK.
+
+## 18. Laser and PSD calibration (CALIB)
+1. docs/CALIBRATION.md: new section. calib/lasers.yaml holds laser parallelism to the horn axis, PSD targets, and the PSD-B null and scale vs the radar datum (reversal if the datum allows 180 deg, Q11).
+2. The controller refuses to start without the file.
+Tests: injected misalignments are recovered within the predicted sigma.
+
+## 19. Field-engineer interface
+D8 in docs/FINAL_DESIGN.md: state, the 3 PSD spots with their targets, Az/El errors vs threshold, camera with KLT marks, inclinometers, servo and encoder status, sensor health, alerts. Schema in docs/messages.md. No radar data.
+
+## 20. Tabletop demo parts
+2 m demo: S5991-01 x3 is enough at 2 m (FINAL_DESIGN 7.1); lasers, servos, mounts, ADC, controller. Parts we have: [LIST OF PARTS].
