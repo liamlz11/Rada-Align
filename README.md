@@ -105,4 +105,3 @@ python scripts/calibrate_camera.py --images calib/chessboard --cols 9 --rows 6 -
 - Task list: docs/TASKS.md
 - Progress log: docs/PROGRESS.md
 - Questions for mentors: docs/OPEN_QUESTIONS.md
-- Original Hebrew docs (challenge summary, prompt pack): docs/reference/

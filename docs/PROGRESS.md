@@ -12,7 +12,7 @@ Template:
 ---
 
 ## 2026-11-14 – Setup
-- Built: CLAUDE.md, docs/CHALLENGE.md, docs/TASKS.md, docs/OPEN_QUESTIONS.md, slides in docs/slides/.
+- Built: CLAUDE.md, docs/CHALLENGE.md, docs/TASKS.md, docs/OPEN_QUESTIONS.md, slides in docs/slides/ (the DRS slides were removed before the repo went public; the whiteboard image stays).
 - Next: task 0 (git init + Python env), then task 1.
 
 ## 2026-11-14 – Task 0: Repo setup (Windows verified, WSL NOT verified -> box not ticked)

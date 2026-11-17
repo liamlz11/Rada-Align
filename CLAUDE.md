@@ -2,7 +2,7 @@
 
 ## Goal
 Autonomous system that aligns a horn antenna to a radar in a field test: residual error <= +/-0.05 deg in azimuth AND elevation, without using any radar data.
-Full challenge summary: docs/CHALLENGE.md. Final design (source of truth): docs/FINAL_DESIGN.md. Mentor feedback and gap analysis: docs/MENTOR_FEEDBACK.md. Original slides: docs/slides/. Original Hebrew docs (challenge summary, prompt pack): docs/reference/.
+Full challenge summary: docs/CHALLENGE.md. Final design (source of truth): docs/FINAL_DESIGN.md. Mentor feedback and gap analysis: docs/MENTOR_FEEDBACK.md. Our final-design whiteboard: docs/slides/06-final-design-whiteboard.jpg. (The DRS presentation slides and the original Hebrew challenge docs were removed before the repo went public.)
 
 ## Key numbers
 - Requirement tightened to 0.005 deg (mentor, Liam 2026-11-17; DRS value 0.05 deg): 1.05 mm at 12 m, 0.17 mm at 2 m. The demo runs a profile without wind, drift and calibration residuals (rada_align/psd/config.py DEMO_SOURCES); with every assumed source on, 0.005 deg is not reached (docs/FINAL_DESIGN.md 0.3).
