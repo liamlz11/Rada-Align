@@ -862,9 +862,7 @@ The code plan is in docs/TASKS.md (tasks 13-20).
 
 ## Appendix: numbers script
 
-- **Where the script is:** in the session scratchpad until the doc diff is OK'd,
-  then at `scripts/final_design_numbers.py`. Path until then:
-  `C:\Users\liaml\AppData\Local\Temp\claude\a28320b341a7c77b\f80508c0-84ba-4d34-9026-6e2d6da317d4\scratchpad\final_design_numbers.py`
+- **Where the script is:** `scripts/final_design_numbers.py`.
 - **Run:** `python scripts/final_design_numbers.py`. It uses numpy only and has no
   repo imports.
 - **Output:** every number in sections 2, 4, 7 and 9 comes from it. The raw

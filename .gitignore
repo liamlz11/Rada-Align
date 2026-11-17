@@ -10,3 +10,4 @@ runs/
 .env
 .pio-core/
 calib/*.sim.yaml
+.impeccable/
