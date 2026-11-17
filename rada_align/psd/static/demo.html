@@ -138,6 +138,10 @@ body.tour-mode .caption{inset-inline:10%;bottom:130px;padding:18px 26px}
 body.tour-mode .caption b{font-size:1.7rem}
 body.tour-mode .caption span{font-size:1.3rem;line-height:1.5}
 body.tour-mode .caption .step{font-size:1rem}
+.caption .next{display:none;pointer-events:auto;margin-top:12px;background:var(--survey);color:#14202b;border:0;border-radius:var(--r-sm);
+  padding:8px 30px;font-size:1.15rem;font-weight:700;cursor:pointer}
+.caption .nexthint{display:none;color:var(--ink-3);font-size:.8rem;margin-top:4px}
+.caption.wait .next{display:inline-block} .caption.wait .nexthint{display:block}
 body.tour-mode .verdict .big{font-size:3rem}
 body.tour-mode .tag3d{font-size:1.05rem}
 body.tour-mode .pipeline .st{font-size:1.05rem}
@@ -194,7 +198,8 @@ td.num{text-align:end}
       <button data-v="top">מלמעלה</button><button data-v="radar">מאחורי המכ"ם</button><button data-v="horn">יחידת ה-PSD</button>
     </div>
     <div class="wx" id="wx"></div>
-    <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div></div>
+    <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div>
+      <button class="next" id="tourNext">הבא ←</button><div class="nexthint">רווח / Enter / חץ שמאלה</div></div>
     <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.<br>גרירה: סיבוב · Ctrl+גלגלת: זום</div>
     <div class="pipeline" id="pipeline"></div>
     <button class="tourExit" id="tourExit">עצור הדגמה (Esc)</button>
@@ -548,6 +553,7 @@ function applyPose(m){
     end = o.clone().add(ex.clone().multiplyScalar(blocked ? tt*0.45 : tt));
     const len = o.distanceTo(end), mid = o.clone().add(end).multiplyScalar(.5);
     const bm = beams[kk]; bm.scale.set(1,len,1); bm.position.copy(mid);
+    bm.visible = glows[kk].visible = m.lasers_on !== false;  // lasers off during the encoder test
     bm.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), end.clone().sub(o).normalize());
     const s = m.psd[kk]; bm.material.opacity = s.detect ? .95 : .45;
     glows[kk].position.copy(end); glows[kk].scale.setScalar(s.valid ? .16 : .09);
@@ -753,10 +759,13 @@ function encText(m){
   const T = m.enc_test; if (!T) return '';
   const f4 = v => (v>=0?'+':'') + v.toFixed(4) + '°';
   if (T.phase !== 'done'){
-    const ph = {out:'המכ"ם זז בזווית שנבחרה; האנקודרים מודדים את התזוזה', back:'חוזר לספירות האנקודר שנשמרו', measure:'ה-PSD מודדים את השגיאה אחרי החזרה'}[T.phase];
+    const ph = {out:'הלייזרים כבויים; המכ"ם זז בזווית שנבחרה והאנקודרים מודדים את התזוזה', back:'הלייזרים כבויים; חוזר לספירות האנקודר שנשמרו', measure:'הלייזרים דולקים; ה-PSD מודדים את השגיאה אחרי החזרה', refine:'כיוון עדין של המכ"ם לפי ה-PSD'}[T.phase];
     return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> ${ph}` + (T.moved ? ` · האנקודרים: <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span>` : '');
   }
-  return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> הוזז <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span> והוחזר · שגיאת המכ"ם לפני <span class="num">${f4(T.before[0])}/${f4(T.before[1])}</span>, אחרי <span class="num">${f4(T.after[0])}/${f4(T.after[1])}</span> <span style="color:var(--truth)">(אמת אחרי ${f4(T.true_after[0])}/${f4(T.true_after[1])})</span>`;
+  const ae = T.after_encoder || T.after;
+  return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> הוזז <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span> והוחזר (לייזרים כבויים) · שגיאת המכ"ם לפני <span class="num">${f4(T.before[0])}/${f4(T.before[1])}</span>, אחרי האנקודרים <span class="num">${f4(ae[0])}/${f4(ae[1])}</span>`
+    + (T.refine ? `, אחרי ${T.refine} צעדי כיוון עדין <span class="num">${f4(T.after[0])}/${f4(T.after[1])}</span>` : ' (בלי כיוון נוסף)')
+    + ` <span style="color:var(--truth)">(אמת ${f4(T.true_after[0])}/${f4(T.true_after[1])})</span>`;
 }
 // motor step test: commanded steps, measured by the PSD (not the encoder)
 function stepText(m){
@@ -825,16 +834,25 @@ async function until(id, pred, simTimeout){
 // sim-time wait; a reset of the sim clock (new setup) restarts the count
 const simWait = (id, dt) => { let t0 = M ? M.t : 0; return until(id, m => { if (m.t < t0) t0 = m.t; return m.t - t0 >= dt }, dt + 1) };
 const settled = m => m.state==='TRACK' && m.aligned && !m.klt_bridge;
-// Each caption is shown with the simulation PAUSED for a few seconds, then the
-// simulation resumes, so nothing moves on while the audience reads.
-const READ_S = 6;
-async function hold(id, seconds){
-  const t0 = performance.now();
-  while (performance.now() - t0 < seconds*1000){ if (tourRun!==id) throw 'aborted'; await sleep(120) }
+// The presenter moves on with "next" (button, space, Enter or left arrow); the
+// simulation stays paused while a caption waits.
+let nextGo = null;
+function waitNext(id){
+  return new Promise((res, rej) => {
+    cap.classList.add('wait'); $('tourNext').focus({preventScroll:true});
+    const iv = setInterval(() => { if (tourRun!==id){ done(); rej('aborted') } }, 120);
+    function done(){ clearInterval(iv); nextGo = null; cap.classList.remove('wait') }
+    nextGo = () => { done(); res() };
+  });
 }
-async function say(id, title, text, step, seconds = READ_S){
+$('tourNext').onclick = () => nextGo && nextGo();
+document.addEventListener('keydown', e => {
+  if (!nextGo || !document.body.classList.contains('tour-mode')) return;
+  if ([' ','Enter','ArrowLeft','PageDown'].includes(e.key)){ e.preventDefault(); nextGo() }
+});
+async function say(id, title, text, step){
   await cmd('pause', true); caption(title, text, step);
-  await hold(id, seconds);
+  await waitNext(id);
   await cmd('pause', false);
 }
 // Guided tour in three parts. Every caption freezes the simulation (say/hold), and
@@ -869,10 +887,10 @@ async function tour(){
       if (tourRun!==id) throw 'aborted';
       if (M && M.paused && M.state !== last){
         last = M.state;
-        if (last==='FAULT'){ caption('תקלה', M.fault_reason, P1(n)); await hold(id, READ_S); throw 'fault' }
+        if (last==='FAULT'){ caption('תקלה', M.fault_reason, P1(n)); await waitNext(id); throw 'fault' }
         if (STEP_VIEW[last]) setView(STEP_VIEW[last]);
         caption(`${STATE_HE[last]} · ${last}`, STEP_TEXT[last] || STATE_WHY[last] || '', P1(n++));
-        await hold(id, READ_S + 1); await cmd('pause', false);
+        await waitNext(id); await cmd('pause', false);
       }
       if (M && last==='TRACK' && !M.paused) break;
       await sleep(100);
@@ -898,15 +916,22 @@ async function tour(){
     // ---------------- part 3: radar accuracy test with the encoders
     const az = +$('encAz').value || 0.5, el = +$('encEl').value || 0.3;
     setView('radarUnit');
-    await say(id, 'חלק 3: בדיקת דיוק המכ"ם', `נזיז את המכ"ם במנועים ב-${az}° אזימוט ו-${el}° גובה. האנקודרים על המנועים מודדים את התזוזה ויודעים להחזיר אותו בדיוק למקום. השופר לא זז.`, P3(1), 9);
+    await say(id, 'חלק 3: בדיקת דיוק המכ"ם', `קודם מכבים את הלייזרים, כדי שהקרן לא תעבור על אף אחד בזמן שהמכ"ם זז. אחר כך המנועים מזיזים את המכ"ם ב-${az}° אזימוט ו-${el}° גובה, והאנקודרים מחזירים אותו בדיוק לנקודה שממנה הוזז. בסוף הלייזרים נדלקים שוב, וה-PSD בודקים ומכוונים עדין אם צריך. השופר לא זז.`, P3(1));
     await cmd('encoder_test', `${az},${el}`);
     await until(id, m => m.enc_test && m.enc_test.moved, 10);
+    setView('overview');
+    const mv = M.enc_test.moved.map(v => v.toFixed(4));
+    await say(id, 'הלייזרים כבויים, המכ"ם הוזז', `אין קרן ואין אות על אף PSD. האנקודרים מדדו תזוזה של ${mv[0]}° / ${mv[1]}°. החזרה נעשית רק לפי האנקודרים.`, P3(2));
+    await until(id, m => m.enc_test && m.enc_test.after_encoder, 20);
     setView('horn');
-    await say(id, 'המכ"ם הוזז', 'הקרן יצאה מ-PSD-A (אין אות). האנקודרים מראים בדיוק כמה המכ"ם זז; לפיהם הוא יחזור, בלי עזרת ה-PSD.', P3(2), 8);
-    await until(id, m => m.enc_test && m.enc_test.phase==='done', 20);
-    await say(id, 'המכ"ם חזר לפי האנקודרים', 'ה-PSD מודדים את התוצאה: שגיאת המכ"ם לפני ואחרי. ההפרש הוא ברזולוציית האנקודר (0.0001°) ובחזרתיות המנוע.', P3(3), 10);
-    caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
-    await hold(id, 8);
+    const T3 = M.enc_test, f4 = v => (v>=0?'+':'') + v.toFixed(4) + '°';
+    const need = Math.max(...T3.after_encoder.map(Math.abs)) > 0.001;
+    await say(id, 'המכ"ם חזר, הלייזרים נדלקו', `לפי האנקודרים בלבד המכ"ם חזר לשגיאה של ${f4(T3.after_encoder[0])} / ${f4(T3.after_encoder[1])} (לפני הבדיקה ${f4(T3.before[0])} / ${f4(T3.before[1])}). `
+      + (need ? 'זה מעל 0.001°, ולכן המכ"ם מתכוונן עכשיו עדין לפי ה-PSD.' : 'זה בתוך 0.001°, ולכן אין צורך בכיוון נוסף.'), P3(3));
+    await until(id, m => m.enc_test && m.enc_test.phase==='done', 30);
+    if (M.enc_test.refine) await say(id, 'כיוון עדין לפי ה-PSD', `אחרי ${M.enc_test.refine} צעדי כיוון: שגיאת המכ"ם ${f4(M.enc_test.after[0])} / ${f4(M.enc_test.after[1])}, והמכ"ם שוב בבלם.`, P3(4));
+    caption('סוף ההדגמה', 'בלחיצה על "הבא" התצוגה חוזרת למסך הרגיל. שם, ב"לפני ואחרי": השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
+    await waitNext(id);
   } catch(e){ if (e!=='aborted' && e!=='fault') console.error(e) }
   await cmd('pause_on_state', false); await cmd('pause', false);
   if (tourRun===id){ tourRun++; caption(null) }

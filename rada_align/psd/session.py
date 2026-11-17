@@ -227,6 +227,7 @@ class PsdSession:
             "radar_gap": c.radar_gap,
             "radar_braked": all(w.servos[i].braked for i in (3, 4, 5)),
             "blocked": w.blocked,
+            "lasers_on": w.lasers_on,
             "wind_scale": self.wind_scale,
             "field_errors": self.field_errors,
             "weather": w.weather,

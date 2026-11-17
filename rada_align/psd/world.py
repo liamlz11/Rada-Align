@@ -122,6 +122,7 @@ class World:
         self.ac_size_mm = cfg.sensor.ac_size_mm
         self.wind_scale = 1.0
         self.blocked_until = -1.0
+        self.lasers_on = True  # laser board power (off while the radar swings, eye safety)
         # weather has its own generator and draws nothing when clear, so a clear
         # run and a rainy run of the same seed share setup, wind and sensor noise
         self.weather = "clear"
@@ -271,7 +272,7 @@ class World:
                 half = self.ac_size_mm / 2
                 power = _fraction_1d(pos[0], half, sig) * _fraction_1d(pos[1], half, sig)
                 valid = bool(np.all(np.abs(pos) + r99 <= half))
-            if self.blocked:
+            if self.blocked or not self.lasers_on:
                 power, valid = 0.0, False
             drop = self._drops[k]
             atm = T  # share of the launched power that survives the path and the window

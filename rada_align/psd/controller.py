@@ -141,9 +141,12 @@ class PsdController:
         self._goto("CALIB")
 
     def start_encoder_test(self, az_deg: float, el_deg: float) -> bool:
-        """Accuracy test of the radar axes (TRACK only): move the radar by a chosen
-        angle with its servos, read the move on the encoders, then drive back to the
-        recorded encoder counts. The horn holds still; the PSDs judge the return."""
+        """Accuracy test of the radar axes (TRACK only). The lasers are switched off
+        first, so no beam sweeps across people while the radar swings. The radar
+        moves by a chosen angle with its servos, the encoders read the move, and it
+        drives back to the recorded encoder counts. Then the lasers come back on, the
+        PSDs measure the return, and if the radar is outside the ALIGN deadband it is
+        fine re-aligned on the PSDs. The horn holds still throughout."""
         if self.state != "TRACK" or self.emitter != "radar" or (self.enc_test and self.enc_test["phase"] != "done"):
             return False
         before = np.mean(np.array(self._track_est)[:, 2:4], axis=0) if len(self._track_est) else             (np.array(self.est[2:4]) if self.est is not None else np.zeros(2))
@@ -152,7 +155,10 @@ class PsdController:
         self.enc_test = {"phase": "out", "offset": [float(az_deg), float(el_deg)], "enc0": enc0,
                          "enc_out": None, "moved": None, "before": [float(v) for v in before],
                          "after": None, "true_before": [float(v) for v in self.w.true_errors()[2:4]],
-                         "true_after": None, "t": 0.0, "buf": []}
+                         "true_after": None, "after_encoder": None, "true_after_encoder": None,
+                         "refine": 0, "t": 0.0, "buf": []}
+        self.w.lasers_on = False
+        self._log("ENCODER TEST: lasers OFF (eye safety while the radar moves)")
         self._brake_radar(False)
         self.w.servos[p].command(enc0[0] + az_deg)
         self.w.servos[t].command(enc0[1] + el_deg)
@@ -170,8 +176,7 @@ class PsdController:
                     T["enc_out"] = [float(sp.encoder), float(st.encoder)]
                     T["moved"] = [T["enc_out"][0] - T["enc0"][0], T["enc_out"][1] - T["enc0"][1]]
                     T["hold"] = 0.0
-                    self._log(f"ENCODER TEST: encoders read a move of {T['moved'][0]:+.3f}/{T['moved'][1]:+.3f} deg; "
-                              f"PSD-A {'still sees' if psd['A'].detect else 'lost'} the beam")
+                    self._log(f"ENCODER TEST: encoders read a move of {T['moved'][0]:+.3f}/{T['moved'][1]:+.3f} deg")
                 T["hold"] += self.dt
                 if T["hold"] >= 1.5:
                     sp.command(T["enc0"][0])
@@ -182,22 +187,46 @@ class PsdController:
         if T["phase"] == "back":
             if not (sp.moving or st.moving) and T["t"] > 0.5:
                 self._brake_radar(True)
+                self.w.lasers_on = True
+                self._log("ENCODER TEST: back on the recorded counts, radar braked; lasers ON")
                 T["phase"], T["t"], T["buf"] = "measure", 0.0, []
             return
         if T["phase"] == "measure":
+            if T["t"] < 0.3:  # lock-in settles after the lasers come back
+                return
             ok, e = self._sample_errors(psd)
             if ok:
                 T["buf"].append(e[2:4])
-            if T["t"] >= 1.5:
-                after = np.mean(T["buf"], axis=0) if T["buf"] else np.array([np.nan, np.nan])
-                T["after"] = [float(v) for v in after]
-                T["true_after"] = [float(v) for v in self.w.true_errors()[2:4]]
-                T["phase"] = "done"
-                self._log("ENCODER TEST: back; radar error by the PSDs {:+.4f}/{:+.4f} deg (before {:+.4f}/{:+.4f}); "
-                          "truth {:+.4f}/{:+.4f}".format(*T["after"], *T["before"], *T["true_after"]))
-                self._track_est.clear()
-                self._track_true.clear()
-                self._track_ok.clear()
+            if T["t"] < 1.8:
+                return
+            after = np.mean(T["buf"], axis=0) if T["buf"] else np.array([np.nan, np.nan])
+            T["after"] = [float(v) for v in after]
+            T["true_after"] = [float(v) for v in self.w.true_errors()[2:4]]
+            if T["after_encoder"] is None:  # the result of the encoders alone
+                T["after_encoder"], T["true_after_encoder"] = list(T["after"]), list(T["true_after"])
+                self._log("ENCODER TEST: after the encoder return, radar error by the PSDs {:+.4f}/{:+.4f} deg "
+                          "(before {:+.4f}/{:+.4f}); truth {:+.4f}/{:+.4f}".format(*T["after"], *T["before"], *T["true_after"]))
+            if T["buf"] and np.max(np.abs(after)) > self.c.deadband_deg and T["refine"] < self.c.max_iterations:
+                # fine re-alignment of the radar on the PSDs, as in ALIGN
+                T["refine"] += 1
+                self._brake_radar(False)
+                delta = -np.linalg.solve(self.est_model.Jj[2:4, 3:5], after)
+                self._command((3, 4), delta)
+                self._log(f"ENCODER TEST: radar fine re-align #{T['refine']} on the PSDs: {delta[0]:+.4f}/{delta[1]:+.4f} deg")
+                T["phase"], T["t"] = "refine", 0.0
+                return
+            T["phase"] = "done"
+            self._log("ENCODER TEST: done; radar error {:+.4f}/{:+.4f} deg by the PSDs, truth {:+.4f}/{:+.4f}{}".format(
+                *T["after"], *T["true_after"],
+                f" after {T['refine']} PSD re-align step(s)" if T["refine"] else "; no re-align needed"))
+            self._track_est.clear()
+            self._track_true.clear()
+            self._track_ok.clear()
+            return
+        if T["phase"] == "refine":
+            if not (sp.moving or st.moving) and T["t"] > 0.5:
+                self._brake_radar(True)
+                T["phase"], T["t"], T["buf"] = "measure", 0.0, []
             return
 
     # ---------------------------------------------------------- step test
@@ -279,6 +308,7 @@ class PsdController:
         self._track_ok.clear()
 
     def stop(self) -> None:
+        self.w.lasers_on = True
         for s in self.w.servos:
             s.target = s.pos
         self._goto("IDLE")

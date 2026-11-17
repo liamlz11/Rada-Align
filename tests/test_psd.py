@@ -275,10 +275,16 @@ def test_radar_encoder_test_returns_to_the_recorded_counts():
         c.tick(); w.step(c.dt)
     horn0 = [w.servos[i].pos for i in (0, 1, 2)]
     assert c.start_encoder_test(0.5, 0.3)
+    lit_while_moving = False
     while w.t < 200 and c.enc_test["phase"] != "done":
         c.tick(); w.step(c.dt)
+        if c.enc_test["phase"] in ("out", "back"):
+            assert not w.lasers_on  # eye safety: no beam while the radar swings
+            lit_while_moving |= any(p.detect for p in c.last_psd.values())
     T = c.enc_test
     assert T["phase"] == "done"
+    assert not lit_while_moving and w.lasers_on
+    assert max(abs(v) for v in T["after"]) <= c.c.deadband_deg or T["refine"] == c.c.max_iterations
     assert [w.servos[i].pos for i in (0, 1, 2)] == horn0
     assert abs(T["moved"][0] - 0.5) < 2e-3 and abs(T["moved"][1] - 0.3) < 2e-3
     assert max(abs(a - b) for a, b in zip(T["true_after"], T["true_before"])) < 1e-3
