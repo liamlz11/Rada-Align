@@ -72,6 +72,7 @@ class PsdController:
         self._wp: list[tuple[float, float]] = []
         self._scan_expansions = 0
         self._radar_fix = False
+        self._horn_fix = False  # TRACK: a horn correction runs until the horn is back in the deadband
         self._side_only = None
 
     def _log(self, text: str) -> None:
@@ -655,7 +656,21 @@ class PsdController:
             return
         self._track_eval_t = 0.0
         mean = np.mean(self._track_est, axis=0)
-        if max(abs(mean[0]), abs(mean[1])) > self.c.track_threshold_deg:
+        # hysteresis: start correcting above track_threshold, keep going until the horn
+        # is back inside the ALIGN deadband (half steps alone stop just under the
+        # threshold, which leaves too little margin for the 0.005 deg window score)
+        horn_err = max(abs(mean[0]), abs(mean[1]))
+        tw = self.track_window
+        horn_fails = bool(tw is not None and tw["full"] and not tw["reported"]["pass"]
+                          and max(tw["reported"]["score"][0], tw["reported"]["score"][1]) >= max(tw["reported"]["score"][2], tw["reported"]["score"][3]))
+        # also correct a smaller bias when the window criterion fails on the horn:
+        # with the PSD-B sample noise (2 sigma about 0.004 deg at 12 m) a bias under
+        # the threshold can still fail the 0.005 deg score
+        if horn_err > self.c.track_threshold_deg or (horn_fails and horn_err > self.c.deadband_deg):
+            self._horn_fix = True
+        elif horn_err < self.c.deadband_deg:
+            self._horn_fix = False
+        if self._horn_fix:
             J = self.est_model.Jj[0:2, 0:2]
             delta = -self.c.track_kp * np.linalg.solve(J, mean[:2])
             if self._command((0, 1), delta):

@@ -291,6 +291,26 @@ def test_radar_encoder_test_returns_to_the_recorded_counts():
     assert all(s.braked for s in w.servos[3:6])
 
 
+def test_horn_knock_returns_inside_the_deadband():
+    # TRACK hysteresis: after a 0.08 deg horn knock the correction keeps going until
+    # the horn is back inside the ALIGN deadband, and a fresh 5 s window passes
+    from rada_align.psd.config import DEMO_SOURCES
+    w = World(quiet(CFG, DEMO_SOURCES), 0, 12.0)
+    c = PsdController(w)
+    c.start()
+    while w.t < 120 and c.state not in ("TRACK", "FAULT"):
+        c.tick(); w.step(c.dt)
+    for _ in range(int(8 / c.dt)):
+        c.tick(); w.step(c.dt)
+    t0 = w.t
+    w.push_side("horn", 0.08)
+    while w.t - t0 < 45:
+        c.tick(); w.step(c.dt)
+    tw = c.track_window
+    assert c.state == "TRACK" and tw["full"] and tw["reported"]["pass"]
+    assert max(abs(v) for v in w.true_errors()[:2]) < 2 * c.c.deadband_deg
+
+
 def test_radar_step_test_resolves_a_millidegree_step():
     # motor validation, demo profile at 12 m, RV HAHLT servo model: 5 steps of
     # 0.001 deg out and back on the radar pan; PSD-A must see every step

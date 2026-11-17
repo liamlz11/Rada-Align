@@ -137,7 +137,26 @@ body.tour-mode .tourExit{display:block}
 /* tour: the caption is a side panel under the status title, so the rig stays clear
    (the 3D view is shifted away from it, see resize()) */
 body.tour-mode .caption{inset-inline:auto;inset-inline-start:18px;top:170px;bottom:auto;width:min(420px,30vw);
-  max-height:calc(100% - 270px);overflow:auto;text-align:start;padding:18px 22px;background:rgba(10,16,22,.82)}
+  max-height:calc(100% - 520px);min-height:0;overflow:auto;text-align:start;padding:18px 22px;background:rgba(10,16,22,.82)}
+.hud{display:none;position:absolute;inset-inline-start:18px;bottom:70px;width:min(420px,30vw);background:rgba(10,16,22,.82);
+  border:1px solid var(--rule);border-radius:var(--r-lg);padding:12px 14px;pointer-events:none}
+body.tour-mode .hud{display:block}
+.replayBar{display:none;position:absolute;bottom:68px;left:50%;transform:translateX(-50%);z-index:6;gap:14px;align-items:center;
+  background:rgba(10,16,22,.85);border:1px solid var(--rule);border-radius:var(--r-lg);padding:8px 14px;color:var(--ink-2)}
+body.replay .replayBar{display:flex}
+body.replay .replayBar .btn{font-size:1.05rem;padding:8px 22px}
+body.replay .caption .next, body.replay .caption .nexthint, body.replay .tourExit, body.replay .exag{display:none !important}
+body.replay .views{top:16px}
+body.rec .caption .next, body.rec .caption .nexthint, body.rec .tourExit, body.rec .exag{display:none !important}
+body.rec .views{top:16px}
+.hud-errs{display:grid;grid-template-columns:auto 1fr 1fr;gap:2px 12px;align-items:baseline}
+.hud-errs .h{color:var(--ink-3);font-size:.85rem}
+.hud-errs b{font-size:1.3rem;font-weight:500}
+.hud-errs b.good{color:var(--ink)} .hud-errs b.bad{color:var(--signal)}
+.hud-tol{color:var(--ink-3);font-size:.8rem;margin:2px 0 8px}
+.hud-psd{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:.8rem;color:var(--ink-2)}
+.hud-psd canvas{width:100%;aspect-ratio:1;display:block;border-radius:6px}
+.hud-psd .read{font-size:.75rem;color:var(--ink-3)}
 body.tour-mode .caption b{font-size:1.45rem;margin-bottom:6px}
 body.tour-mode #scene{inset:0 auto 0 0;width:calc(100% - min(420px,30vw) - 36px)}
 body.tour-mode .caption span{font-size:1.12rem;line-height:1.55}
@@ -207,6 +226,19 @@ td.num{text-align:end}
       <button class="next" id="tourNext">הבא ←</button><div class="nexthint">רווח / Enter / חץ שמאלה</div></div>
     <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.<br>גרירה: סיבוב · Ctrl+גלגלת: זום<br>מנוע: טבעת כתומה = נע · אדומה = בלם</div>
     <div class="pipeline" id="pipeline"></div>
+    <div class="hud" id="hud" aria-label="מספרים בזמן ההדגמה">
+      <div class="hud-errs"><span></span><span class="h">Az</span><span class="h">El</span>
+        <span class="h">מכ"ם</span><b class="num" id="hr_az"></b><b class="num" id="hr_el"></b>
+        <span class="h">שופר</span><b class="num" id="hh_az"></b><b class="num" id="hh_el"></b></div>
+      <div class="hud-tol num" id="hudtol"></div>
+      <div class="hud-psd">
+        <div id="hpsdA"><canvas></canvas><div>PSD-A <span class="pill" data-k="pill"></span></div><div class="read num"></div></div>
+        <div id="hpsdB"><canvas></canvas><div>PSD-B <span class="pill" data-k="pill"></span></div><div class="read num"></div></div>
+        <div id="hpsdC"><canvas></canvas><div>PSD-C <span class="pill" data-k="pill"></span></div><div class="read num"></div></div>
+      </div>
+    </div>
+    <div class="replayBar" id="replayBar"><button id="rBack" class="btn">→ הקודם</button>
+      <span id="replayProg" class="num"></span><button id="rNext" class="btn primary">הבא ←</button></div>
     <button class="tourExit" id="tourExit">עצור הדגמה (Esc)</button>
   </section>
 
@@ -221,7 +253,7 @@ td.num{text-align:end}
 
   <div class="row">
     <section class="card" aria-label="שגיאות">
-      <h2>שגיאות מול סף <span class="num" id="tolh">±0.005°</span><small>מדווח מה-PSD · אמת בתכלת</small></h2>
+      <h2>שגיאות מול סף <span class="num" id="tolh">±0.005°</span><small>מדווח מה-PSD (ממוצע נע 1 ש') · אמת בתכלת</small></h2>
       <div class="errs" id="errs">
         <span></span><span class="h">אזימוט</span><span class="h">גובה</span>
         <span>מכ"ם</span><span class="v num" id="er_az">—</span><span class="v num" id="er_el">—</span>
@@ -328,11 +360,22 @@ const WX_WHY = {rain_light:'טיפה על חלון מעמעמת PSD אחד; הד
   shimmer:'האוויר החם מזיז מעט את הקרן', sun:'אור רקע מעלה את הרעש של ה-PSD'};
 const fmt = (v, n=3) => v==null ? '—' : (v>=0?'+':'') + v.toFixed(n);
 let M = null, hist = [], logN = 0, exag = 20;
+// Class file (scripts/build_class_demo.py): a recorded run of the guided tour is embedded
+// in the page and replayed step by step, with no server. While recording (?record&trace)
+// the page keeps every message and every tour event with its time.
+const QS = new URLSearchParams(location.search);
+const REPLAY = typeof window.__REPLAY_GZ__ === 'string';
+const TRACE = QS.has('trace') ? [] : null;
+window.__trace = TRACE;
+const tr = (k, d) => { if (TRACE) TRACE.push([Math.round(performance.now()), k, d]) };
 
 // ------------------------------------------------------------------ commands
 async function cmd(name, value=null){
+  if (REPLAY) return;   // recorded: nothing to command
   await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,value})});
 }
+// a tour cut off by a page reload leaves the server paused: clear it on load
+cmd('pause_on_state', false).then(()=>cmd('pause', false)).catch(()=>{});
 $('start').onclick=()=>cmd('start');
 $('stop').onclick=()=>{ if (typeof tourRun!=='undefined' && $('tour').getAttribute('aria-pressed')==='true'){ tourRun++; caption(null) } cmd('stop') };
 $('newsetup').onclick=()=>{hist=[];cmd('new_setup')};
@@ -345,7 +388,7 @@ $('encTest').onclick=()=>cmd('encoder_test', `${+$('encAz').value||0},${+$('encE
 $('stepTest').onclick=()=>cmd('step_test', `${$('stSide').value},${$('stAxis').value},${+$('stStep').value||0.001},5`);
 $('field').onclick=()=>{hist=[];cmd('field_errors', !(M&&M.field_errors))};
 $('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
-$('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
+$('exag').oninput=e=>{exag=+e.target.value};
 for (const [id,name] of [['dist','distance'],['speed','speed'],['psdsize','psd_size'],['height','height']])
   $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{if(name==='distance'||name==='height')hist=[];cmd(name,+b.dataset.v)});
 $('weather').querySelectorAll('button').forEach(b=>b.onclick=()=>cmd('weather', b.dataset.v));
@@ -438,7 +481,8 @@ function stage(name, axis, r, h){
   const st = {stator, rotor, ledMat, cap, canAxis, spin:0};
   motors[name] = st; return st;
 }
-function axisChain(side, half, xr, k){
+function axisChain(side, half, xr, k, zs = 1){
+  // zs: which side of the fork carries the tilt motor (+1 / -1), so it faces the viewer
   // side 'horn' | 'radar'; half = fork half-width; xr = roll stage position behind the payload
   const base = new THREE.Group(), pan = new THREE.Group(), tilt = new THREE.Group(), roll = new THREE.Group();
   base.add(pan); pan.add(tilt); tilt.add(roll); scene.add(base);
@@ -452,9 +496,9 @@ function axisChain(side, half, xr, k){
   }
   // Tilt: stage outside one fork plate, plain bearing hub on the other
   const stt = stage(side+'_tilt', 'z', 0.065*k, 0.04*k);
-  stt.stator.position.set(0,0,half+0.007+0.02*k); pan.add(stt.stator);
-  stt.rotor.position.set(0,0,half-0.012); tilt.add(stt.rotor);
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.03,20), matStage); hub.rotation.x = Math.PI/2; hub.position.set(0,0,-half-0.02); pan.add(hub);
+  stt.stator.position.set(0,0,zs*(half+0.007+0.02*k)); pan.add(stt.stator);
+  stt.rotor.position.set(0,0,zs*(half-0.012)); tilt.add(stt.rotor);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.03,20), matStage); hub.rotation.x = Math.PI/2; hub.position.set(0,0,-zs*(half+0.02)); pan.add(hub);
   // tilt cradle: two arms back to the roll stage
   for (const z of [half-0.03, -(half-0.03)]){
     const arm = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(xr)+0.02,0.03,0.02), matMetal); arm.position.set(xr/2,0,z); tilt.add(arm);
@@ -466,7 +510,7 @@ function axisChain(side, half, xr, k){
   sr.rotor.position.set(xr+0.028,0,0); roll.add(sr.rotor);
   return {base, pan, tilt, roll};
 }
-const H = axisChain('horn', 0.2, -0.46, 1), R = axisChain('radar', 0.36, -0.16, 1.35);
+const H = axisChain('horn', 0.2, -0.46, 1), R = axisChain('radar', 0.36, -0.16, 1.35, -1);
 const hornShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.07,12), matMetal); hornShaft.rotation.z = Math.PI/2; hornShaft.position.set(-0.41,0,0); H.roll.add(hornShaft);
 const radarShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.06,12), matMetal); radarShaft.rotation.z = Math.PI/2; radarShaft.position.set(-0.11,0,0); R.roll.add(radarShaft);
 function updateMotors(m){
@@ -597,6 +641,12 @@ function buildPose(P){
 let emitterIsRadar = true;
 
 const D2R = Math.PI/180;
+// Guided tour only: an ILLUSTRATED offset (degrees, drawing only, not simulated) that
+// shows both units standing in the field before a person aims them by hand.
+let aimFrom = {h:[0,0], r:[0,0]}, aimTo = {h:[0,0], r:[0,0]}, aimT0 = 0, aimDur = 1;
+function setAim(to, secs){ tr('a', [to, secs]); aimFrom = aimNow(); aimTo = to; aimT0 = performance.now(); aimDur = Math.max(0.01, secs)*1000 }
+function aimNow(){ const k = Math.min(1, (performance.now()-aimT0)/aimDur), e = k<.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+  const L = (a,b) => a.map((v,i)=>v+(b[i]-v)*e); return {h:L(aimFrom.h, aimTo.h), r:L(aimFrom.r, aimTo.r)} }
 function applyPose(m){
   // Positions at true scale along the compressed range; ORIENTATIONS = line of sight
   // plus the true alignment errors multiplied by the exaggeration factor, so an
@@ -611,9 +661,15 @@ function applyPose(m){
   const refApprox = R.base.position.clone().add(new THREE.Vector3(0, lz, 0));
   const L = refApprox.clone().sub(H.base.position);
   const yaw0 = Math.atan2(-L.z, L.x), pitch0 = Math.atan2(L.y, Math.hypot(L.x, L.z));
-  const e = m.truth, X = exag*D2R;
+  const e = m.truth, emax = Math.max(1e-9, ...e.slice(0,5).map(Math.abs));
+  const exNow = Math.min(exag, 5/emax), X = exNow*D2R;   // never more than 5 deg drawn
+  const exLabel = exNow < exag - 0.05 ? `${exag} (כרגע ×${exNow.toFixed(1)}: השגיאה עוד גדולה)` : `${exag}`;
+  if ($('exv').textContent !== exLabel) $('exv').textContent = exLabel;
   H.pan.rotation.y = yaw0 - X*e[0]; H.tilt.rotation.z = pitch0 - X*e[1]; H.roll.rotation.x = X*e[4];
   R.pan.rotation.y = Math.PI + yaw0 - X*e[2]; R.tilt.rotation.z = -pitch0 - X*e[3]; R.roll.rotation.x = 0;
+  const aim = aimNow(), aimBig = Math.max(...aim.h.map(Math.abs), ...aim.r.map(Math.abs)) > 0.3;
+  H.pan.rotation.y += aim.h[0]*D2R; H.tilt.rotation.z += aim.h[1]*D2R;
+  R.pan.rotation.y += aim.r[0]*D2R; R.tilt.rotation.z += aim.r[1]*D2R;
   scene.updateMatrixWorld(true);
   const hx = new THREE.Vector3(1,0,0).transformDirection(H.roll.matrixWorld);
   const rx = new THREE.Vector3(1,0,0).transformDirection(R.roll.matrixWorld);
@@ -628,15 +684,18 @@ function applyPose(m){
     end = o.clone().add(ex.clone().multiplyScalar(blocked ? tt*0.45 : tt));
     const len = o.distanceTo(end), mid = o.clone().add(end).multiplyScalar(.5);
     const bm = beams[kk]; bm.scale.set(1,len,1); bm.position.copy(mid);
-    bm.visible = glows[kk].visible = m.lasers_on !== false;  // lasers off during the encoder test
+    bm.visible = glows[kk].visible = m.lasers_on !== false && !aimBig;  // lasers off: encoder test, or before the manual aim
     bm.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), end.clone().sub(o).normalize());
     const s = m.psd[kk]; bm.material.opacity = s.detect ? .95 : .45;
-    glows[kk].position.copy(end); glows[kk].scale.setScalar(s.valid ? .16 : .09);
+    glows[kk].position.copy(end); glows[kk].scale.setScalar(s.valid ? .085 : .05);
     psdMesh[kk].material.emissive.set(s.valid ? 0x3a0f22 : 0x000000);
   }
   updateMotors(m);
   los.geometry.setFromPoints([hc, ref]); los.computeLineDistances();
-  bore.geometry.setFromPoints([ref, ref.clone().add(rx.clone().multiplyScalar(-DS*0.9))]);
+  // radar axis from the datum towards the horn: on the dashed line of sight when aligned
+  bore.geometry.setFromPoints([ref, ref.clone().add(rx.clone().multiplyScalar(DS*1.05))]);
+  const encOn = m.enc_test && m.enc_test.phase !== 'done';
+  boreMat.opacity = encOn ? 1 : .5; losMat.opacity = encOn ? .9 : .55;
   placeTag('tagH', hc.clone().add(new THREE.Vector3(0,.45,0)), 'שופר');
   placeTag('tagR', ref.clone().add(new THREE.Vector3(0,.55,0)), 'מכ"ם');
   placeTag('tagD', new THREE.Vector3(DS/2, .05, .9), `${m.distance_m} מ'`);
@@ -662,13 +721,14 @@ const VIEWS = {
   side:    {p:[2.5,1.3,6.6], t:[2.5,1.1,0]},
   top:     {p:[2.5,6.8,0.5], t:[2.5,1.1,0]},
   radar:   {p:[DS+1.7,2.0,0.6], t:[0,0.9,0]},
-  horn:    {p:[1.25,1.15,1.15], t:[0.1,0.85,0]},
-  // close-ups used by the guided tour
-  radarUnit:{p:[DS-1.35,1.45,1.1], t:[DS,1.15,0]},
-  // motor close-ups: placed from the live base position (heights vary with the set-up)
-  hornMotors:{base:'H', off:[0.35,0.45,1.3]},
-  radarMotors:{base:'R', off:[0.7,0.6,1.5]},
-  hornClose:{p:[0.85,0.95,0.7], t:[0.05,0.75,0]},
+  // close-ups, placed from the live unit positions (heights vary with the set-up):
+  // p = camera relative to unit `from`, t = target relative to unit `to`
+  horn:      {from:'H', p:[1.3,0.05,1.25], to:'H', t:[0.08,-0.3,0]},              // horn and its PSD unit
+  hornClose: {from:'H', p:[0.95,-0.3,0.8], to:'H', t:[0.05,-0.48,0]},             // the PSD unit, beams arriving
+  radarUnit: {from:'R', p:[-1.45,0.15,1.2], to:'R', t:[-0.05,-0.25,0]},           // radar, laser board and camera
+  radarCam:  {from:'R', p:[1.1,0.3,-0.95], to:'H', t:[0,-0.3,0]},               // over the radar camera to the horn
+  hornMotors:{from:'H', p:[-0.55,0.4,2.05], to:'H', t:[-0.15,-0.12,0]},
+  radarMotors:{from:'R', p:[0.65,0.35,1.95], to:'R', t:[0.1,0.0,0]},
 };
 let tween = null;
 // presets are written for a radar up to ~1 m above the horn; a taller set-up
@@ -677,25 +737,28 @@ let tween = null;
 let viewName = 'overview', viewH = 0;
 function viewFor(name, h){
   const v = VIEWS[name];
-  if (v.base){ const b = (v.base==='H' ? H : R).base.position;
-    const t = b.y > 0 ? [b.x, b.y, b.z] : [v.base==='H' ? 0 : DS, PED, 0];  // before the first pose
-    return {p: [t[0]+v.off[0], t[1]+v.off[1], t[2]+v.off[2]], t} }
+  if (v.from){
+    const at = u => { const b = (u==='H' ? H : R).base.position;
+      return b.y > 0 ? [b.x, b.y, b.z] : [u==='H' ? 0 : DS, PED, 0] };   // before the first pose
+    const a = at(v.from), b = at(v.to);
+    return {p: a.map((x,i)=>x+v.p[i]), t: b.map((x,i)=>x+v.t[i])} }
   const p = [...v.p], t = [...v.t], x = Math.max(0, h - 0.6);
   if (['overview','side','top'].includes(name)){ t[1] += x/2; p[1] += x*0.6; p[2] += x*0.9 }
   if (name==='radar'){ p[1] += x; t[1] += x/2 }
-  if (name==='radarUnit'){ p[1] += x; t[1] += x }
   // guided tour: the canvas is narrower (caption panel), so wide views step back
   if (document.body.classList.contains('tour-mode') && ['overview','side','top'].includes(name))
     for (let i=0;i<3;i++) p[i] = t[i] + (p[i]-t[i])*1.25;
   return {p, t};
 }
-function setView(name){
+function setView(name, instant = false){
   if (!VIEWS[name]) return;
+  tr('v', name);
   viewName = name; viewH = M ? M.pose.height_m : 0;
   const v = viewFor(name, viewH);
   tween = {t0:performance.now(), p0:cam.position.clone(), q0:orbit.target.clone(),
     p1:new THREE.Vector3(...v.p), q1:new THREE.Vector3(...v.t)};
   $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===name)));
+  if (instant){ cam.position.copy(tween.p1); orbit.target.copy(tween.q1); tween = null }
 }
 function stepTween(){
   if (!tween) return;
@@ -705,6 +768,7 @@ function stepTween(){
   if (k>=1) tween = null;
 }
 $('views').querySelectorAll('button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+window.setView = setView;  // console access to every preset (tour close-ups included)
 orbit.addEventListener('start', ()=>{ tween=null;
   $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false')) });
 function resize(){
@@ -720,11 +784,12 @@ requestAnimationFrame(loop);
 // ------------------------------------------------------------------ 2D canvases
 function ctx2(c){const g=c.getContext('2d');const w=c.clientWidth, h=c.clientHeight;
   if (c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2} g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,w,h); return [g,w,h]}
-const trails = {A:[],B:[],C:[]};
-const zoomState = {A:{},B:{},C:{}}; let chartSpan = 0;
+const trails = {};      // per panel id
+const zoomState = {}; let chartSpan = 0;
 const fmtmm = v => v >= 1 ? v.toFixed(1) : v >= 0.1 ? v.toFixed(2) : v.toFixed(3);
-function drawPsd(k, s, geom){
-  const c = $('psd'+k).querySelector('canvas'), g = c.getContext('2d'), W=c.clientWidth||210;
+function drawPsd(k, s, geom, box = $('psd'+k)){
+  const c = box.querySelector('canvas'), g = c.getContext('2d'), W=c.clientWidth||210;
+  if (!c.clientWidth && box.id.startsWith('psd')) return;   // hidden (guided tour)
   if (c.width!==W*2){c.width=W*2;c.height=W*2}
   g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,W);
   const size = k==='B' ? geom.b_size_mm : geom.ac_size_mm, half=size/2, cx=W/2, cy=W/2;
@@ -734,7 +799,7 @@ function drawPsd(k, s, geom){
   const rd = s.detect ? Math.max(Math.abs(s.x), Math.abs(s.y)) : 0;
   const spot = k==='B' ? 0 : geom.spot_r99_mm;
   const win = Math.min(half, Math.max(3*tolmm, 2*spot, 1.3*rd, 0.05));
-  const zst = zoomState[k]; zst.win = zst.win ? (win > zst.win ? win : zst.win + (win - zst.win)*0.08) : win;
+  const zst = zoomState[box.id] || (zoomState[box.id] = {}); zst.win = zst.win ? (win > zst.win ? win : zst.win + (win - zst.win)*0.08) : win;
   const view = zst.win, sc=(W/2-10)/view;
   g.fillStyle='#101a23'; g.fillRect(0,0,W,W);
   if (half*sc < W/2){ g.strokeStyle=C.rule; g.lineWidth=1; g.strokeRect(cx-half*sc+.5, cy-half*sc+.5, 2*half*sc-1, 2*half*sc-1) }
@@ -745,22 +810,22 @@ function drawPsd(k, s, geom){
   g.stroke();
   g.setLineDash([4,3]); g.strokeStyle=C.survey; g.lineWidth=1.5; g.globalAlpha=.85; g.beginPath(); g.arc(cx,cy,Math.min(tolmm*sc, W),0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=1; g.lineWidth=1;
   g.strokeStyle=C.ink3; g.beginPath(); g.moveTo(cx-10,cy); g.lineTo(cx+10,cy); g.moveTo(cx,cy-10); g.lineTo(cx,cy+10); g.stroke();
-  const tr = trails[k]; if (s.detect){tr.push([s.x,s.y]); if(tr.length>24)tr.shift()} else if(tr.length) tr.shift();
+  const tr = trails[box.id] || (trails[box.id] = []); if (s.detect){tr.push([s.x,s.y]); if(tr.length>24)tr.shift()} else if(tr.length) tr.shift();
   const lim = view*1.08, X = v => cx - Math.max(-lim,Math.min(lim,v))*sc, Y = v => cy - Math.max(-lim,Math.min(lim,v))*sc;
   g.strokeStyle=C.irdim; g.lineWidth=1.5; g.beginPath(); tr.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke(); g.lineWidth=1;
-  $('psd'+k).querySelector('.zoom').textContent = `תצוגה ±${fmtmm(view)} mm · רשת ${fmtmm(stp)} mm · טבעת ${TOLS()} = ${fmtmm(tolmm)} mm`;
+  const zEl = box.querySelector('.zoom'); if (zEl) zEl.textContent = `תצוגה ±${fmtmm(view)} mm · רשת ${fmtmm(stp)} mm · טבעת ${TOLS()} = ${fmtmm(tolmm)} mm`;
   if (s.detect){
     const r = Math.min(W/2, k==='B' ? 6 : Math.max(6, spot*sc));
     const gr = g.createRadialGradient(X(s.x),Y(s.y),0,X(s.x),Y(s.y),r);
     gr.addColorStop(0,'rgba(255,120,175,1)'); gr.addColorStop(.5,'rgba(255,61,139,.6)'); gr.addColorStop(1,'rgba(255,61,139,0)');
     g.fillStyle=gr; g.beginPath(); g.arc(X(s.x),Y(s.y),r,0,7); g.fill();
   }
-  const box = $('psd'+k), pill = box.querySelector('[data-k=pill]');
+  const pill = box.querySelector('[data-k=pill]');
   pill.className = 'pill' + (s.valid?' valid':s.dip?' dip':s.detect?' on':'');
   pill.textContent = s.valid ? 'נעול' : s.dip ? 'טיפה על החלון' : s.detect ? 'חלקי' : 'אין אות';
   const per = k==='B' ? geom.mm_per_deg_b : geom.mm_per_deg_ac;
   box.querySelector('.read').textContent = s.detect ? `${fmt(s.x,3)}, ${fmt(s.y,3)} mm` : '—';
-  box.querySelector('.sub').textContent = `${size} mm · ${per.toFixed(k==='B'?3:1)} mm/° · power ${(s.power*100).toFixed(0)}%`;
+  const subEl = box.querySelector('.sub'); if (subEl) subEl.textContent = `${size} mm · ${per.toFixed(k==='B'?3:1)} mm/° · power ${(s.power*100).toFixed(0)}%`;
 }
 
 function drawBull(m){
@@ -832,9 +897,28 @@ function verdict(m){
   big.textContent = m.klt_bridge ? 'הקרן חסומה, NanoTrack מגשר' : STATE_HE[m.state];
   why.innerHTML = (STATE_WHY[m.state]||'') + (m.sub && m.state!=='IDLE' ? ` <span class="ltr" style="color:var(--ink-3)">(${m.sub})</span>` : '');
 }
+// guided tour: the four errors and the three PSDs on the stage, since the cards are hidden
+function hud(m){
+  const off = m.lasers_on === false;   // no measurement while the lasers are off
+  [['hh_az',0],['hh_el',1],['hr_az',2],['hr_el',3]].forEach(([id,i])=>{ const el=$(id), v=(estAvg && !off)?estAvg[i]:null;
+    el.textContent = v==null ? '—' : fmt(v,4)+'°'; el.className = 'num '+(v==null?'':Math.abs(v)<TOL?'good':'bad') });
+  $('hudtol').textContent = (off ? 'הלייזרים כבויים: אין מדידה · ' : '') + `סף ±${TOL}° · מה-PSD, ממוצע נע 1 ש'` + (m.truth ? ` · אמת: מכ"ם ${fmt(m.truth[2],4)}/${fmt(m.truth[3],4)}°, שופר ${fmt(m.truth[0],4)}/${fmt(m.truth[1],4)}°` : '');
+  for (const k of ['A','B','C']) drawPsd(k, m.psd[k], m.psd_geom, $('hpsd'+k));
+}
+// Displayed errors: 1 s moving average of the PSD estimates (single samples are noisy,
+// mostly the horn through PSD-B at 0.87 mm/deg); the pass/fail score uses its own 5 s window.
+let estAvg = null, estT = null;
+function smoothEst(m){
+  if (!m.est || m.lasers_on === false || (estT != null && m.t < estT)){ estAvg = null; estT = m.t; return null }
+  // a real step (ALIGN moves, a knock) is far above the sample noise (~0.002 deg): restart the average
+  if (estAvg && m.est.slice(0,4).some((v,i)=>Math.abs(v-estAvg[i]) > 0.01)) estAvg = null;
+  const dt = estT == null ? 0 : Math.max(0, m.t - estT), a = estAvg ? 1 - Math.exp(-dt/1.0) : 1;
+  estAvg = estAvg ? estAvg.map((v,i)=>v + a*(m.est[i]-v)) : m.est.slice(0,4);
+  estT = m.t; return estAvg;
+}
 function errText(m){
-  const ids=['eh_az','eh_el','er_az','er_el'];
-  ids.forEach((id,i)=>{const el=$(id), v=m.est?m.est[i]:null; el.textContent=v==null?'—':fmt(v,4)+'°';
+  const ids=['eh_az','eh_el','er_az','er_el'], E = smoothEst(m);
+  ids.forEach((id,i)=>{const el=$(id), v=E?E[i]:null; el.textContent=v==null?'—':fmt(v,4)+'°';
     el.className='v num '+(v==null?'':Math.abs(v)<TOL?'good':'bad');
     $('t'+id).textContent = m.truth ? 'אמת '+fmt(m.truth[i],4)+'°' : ''});
   const box=$('score'); const w = m.track || (m.verify && {reported:m.verify.reported, truth:m.verify.truth});
@@ -910,6 +994,7 @@ function beforeAfter(m){
 let tourRun = 0;
 const cap = $('caption');
 function caption(title, text, step){
+  tr('c', title ? [title, text, step||''] : null);
   if (!title){cap.classList.remove('on');return}
   cap.querySelector('b').textContent=title; cap.querySelector('span').textContent=text; cap.querySelector('.step').textContent=step||'';
   cap.classList.add('on');
@@ -927,15 +1012,43 @@ async function until(id, pred, simTimeout){
 // sim-time wait; a reset of the sim clock (new setup) restarts the count
 const simWait = (id, dt) => { let t0 = M ? M.t : 0; return until(id, m => { if (m.t < t0) t0 = m.t; return m.t - t0 >= dt }, dt + 1) };
 const settled = m => m.state==='TRACK' && m.aligned && !m.klt_bridge;
+// back to 0,0 after a disturbance: a full 5 s window that started after it, and passes
+// "next" stays hidden meanwhile, so the numbers on screen always match the caption
+async function recovered(id, simTimeout = 90){
+  const t0 = M ? M.t : 0, stepEl = cap.querySelector('.step'), keep = stepEl.textContent;
+  cap.classList.add('on');
+  const ok = await until(id, m => {
+    const left = Math.max(0, 5.5 - (m.t - t0));
+    const line = `ממתינים: המערכת מחזירה ל-0,0 ובודקת חלון של 5 ש'${left > 0 ? ` (עוד ${left.toFixed(0)} ש' לפחות)` : ''}…`;
+    if (stepEl.textContent !== line){ stepEl.textContent = line; tr('p', line) }
+    return m.t - t0 > 5.5 && settled(m) && m.track && m.track.full && m.track.reported.pass }, simTimeout);
+  stepEl.textContent = keep; tr('p', keep);
+  if (!ok) await say(id, 'עדיין לא חזר', 'המערכת לא החזירה את היישור בזמן הצפוי. ממשיכים, אבל המספרים כאן עוד לא בתוך הסף.', '');
+  return ok;
+}
 // The presenter moves on with "next" (button, space, Enter or left arrow); the
 // simulation stays paused while a caption waits.
 let nextGo = null;
+// Recording mode (?record, used by scripts/record_tour.py): no presenter, so each caption
+// stays up for its reading time, then the screen holds still without a caption for
+// REC_GAP seconds (a clean place to pause or cut the video), then the tour goes on.
+const REC = new URLSearchParams(location.search).has('record');
+const REC_GAP = +(new URLSearchParams(location.search).get('gap') || 3);
+if (REC) document.body.classList.add('rec');
+function readSeconds(){
+  if (QS.has('read')) return +QS.get('read');
+  const words = (cap.querySelector('b').textContent + ' ' + cap.querySelector('span').textContent).trim().split(/\s+/).length;
+  return Math.min(15, Math.max(4, 1.5 + 0.38*words));
+}
 function waitNext(id){
   return new Promise((res, rej) => {
-    cap.classList.add('wait'); $('tourNext').focus({preventScroll:true});
+    cap.classList.add('wait'); if (!REC) $('tourNext').focus({preventScroll:true}); tr('w', 1);
     const iv = setInterval(() => { if (tourRun!==id){ done(); rej('aborted') } }, 120);
-    function done(){ clearInterval(iv); nextGo = null; cap.classList.remove('wait') }
-    nextGo = () => { done(); res() };
+    let timers = [];
+    function done(){ clearInterval(iv); timers.forEach(clearTimeout); nextGo = null; cap.classList.remove('wait') }
+    nextGo = () => { done(); tr('g', 1); res() };
+    if (REC) timers = [setTimeout(() => cap.classList.remove('on'), readSeconds()*1000),
+                       setTimeout(() => nextGo && nextGo(), (readSeconds() + REC_GAP)*1000)];
   });
 }
 $('tourNext').onclick = () => nextGo && nextGo();
@@ -951,7 +1064,7 @@ async function say(id, title, text, step){
 // Guided tour in three parts. Every caption freezes the simulation (say/hold), and
 // in part 1 the server also freezes at every controller state change; each step
 // moves the camera to the place where that step happens.
-const STEP_VIEW = {CALIB:'overview', SETUP:'hornMotors', ACQUIRE:'radar', SCAN:'hornClose', ALIGN:'horn', VERIFY:'side', TRACK:'overview'};
+const STEP_VIEW = {CALIB:'overview', SETUP:'hornMotors', ACQUIRE:'radarCam', SCAN:'hornClose', ALIGN:'horn', VERIFY:'side', TRACK:'overview'};
 const STEP_TEXT = {
   CALIB:'טוענים את קובץ הכיול (מיקום הלייזרים, מרכזי ה-PSD, האפס של העדשה), מודדים מרחק במד הטווח, ומעריכים את הפרש הגובה משני מדי הזווית.',
   SETUP:'מנועי ה-Roll מפלסים את שני הצדדים לפי מדי הזווית, כדי שהלוח והיחידה יהיו מקבילים. טבעת כתומה על מנוע = הוא זז עכשיו.',
@@ -968,18 +1081,27 @@ async function tour(){
     if (M && M.radar_gap) await cmd('gap', false);
     if (M && M.weather !== 'clear') await cmd('weather', 'clear');
     await cmd('speed', 1);
+    const sid0 = M ? M.setup_id : null;
     hist=[]; await cmd('new_setup'); setView('overview');
+    await until(id, m => m.setup_id !== sid0, 5);   // the new set-up is on screen before the first caption
+    // pick a set-up that is clearly off on both sides (still inside the +/-1 deg manual range)
+    const far = m => m.truth && Math.max(Math.abs(m.truth[0]), Math.abs(m.truth[1])) >= 0.6 && Math.max(Math.abs(m.truth[2]), Math.abs(m.truth[3])) >= 0.6;
+    for (let k = 0; k < 15 && M && !far(M); k++){ const s0 = M.setup_id; await cmd('new_setup'); await until(id, m => m.setup_id !== s0, 5) }
+    setAim({h:[24,-9], r:[-20,7]}, 0.01);
     await sleep(600);
     // ---------------- part 1: create 0,0
-    await say(id, 'חלק 1: יצירת 0,0', 'מכוונים ביד את המכ"ם בערך לכיוון השופר, כך שהמצלמה שעליו תראה אותו, ואת השופר בערך לכיוון המכ"ם. אחר כך המצלמה והלייזרים עושים את היישור המדויק על ה-PSD.', P1(1), 9);
-    setView('radar');
-    await say(id, 'הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', P1(2), 7);
+    await say(id, 'חלק 1: יצירת 0,0', 'המכ"ם והשופר עומדים בשטח, כל אחד מסתכל לכיוון אחר (המחשה). קודם אדם מכוון אותם ביד, בערך אחד לשני; אחר כך המצלמה והלייזרים עושים את היישור המדויק על ה-PSD.', P1(1));
+    setAim({h:[0,0], r:[0,0]}, 3.5);
+    await say(id, 'כיוון ידני', 'אדם מסובב ביד כל צד לכיוון השני, עד שהמצלמה שעל המכ"ם רואה את השופר. אחרי הכיוון הידני נשארת שגיאה של עד ±1° בכל ציר ו-±25 ס"מ במיקום, בגבהים שונים. שום נתון מהמכ"ם לא נקרא.', P1(2));
+    setView('side');
+    const t0e = M.truth, f2 = v => (v>=0?'+':'') + v.toFixed(2) + '°';
+    await say(id, 'אחרי הכיוון הידני', `השגיאה שנשארה בהצבה הזו: מכ"ם ${f2(t0e[2])} / ${f2(t0e[3])}, שופר ${f2(t0e[0])} / ${f2(t0e[1])} (אזימוט / גובה). בתצוגה הזוויות מוגדלות, לכן הקרניים עוד רחוקות מהשופר.`, P1(3));
     setView('hornMotors');
-    await say(id, 'המנועים', 'בכל צד שלושה שולחנות סיבוב ממונעים: Pan (סיבוב אופקי), Tilt (הטיה) ו-Roll (גלגול). בכל אחד מנוע עם תמסורת תולעת, אנקודר על הציר, ובמכ"ם גם בלם. בצעד מינימלי של 0.0002° (Newport RV HAHLT) הם מכוונים בתוך 0.005°.', P1(3));
+    await say(id, 'המנועים', 'בכל צד שלושה שולחנות סיבוב ממונעים: Pan (סיבוב אופקי), Tilt (הטיה) ו-Roll (גלגול). בכל אחד מנוע עם תמסורת תולעת, אנקודר על הציר, ובמכ"ם גם בלם. בצעד מינימלי של 0.0002° (Newport RV HAHLT) הם מכוונים בתוך 0.005°.', P1(4));
     setView('radarMotors');
-    await say(id, 'מנועי המכ"ם', 'המכ"ם זז רק לפני הניסוי ובחלון תיקון מותר; בזמן הניסוי שלושת המנועים שלו בבלם. טבעת כתומה = המנוע זז, אדומה = בלם.', P1(4));
+    await say(id, 'מנועי המכ"ם', 'המכ"ם זז רק לפני הניסוי ובחלון תיקון מותר; בזמן הניסוי שלושת המנועים שלו בבלם. טבעת כתומה = המנוע זז, אדומה = בלם.', P1(5));
     await cmd('pause_on_state', true); await cmd('start');
-    let last = '', n = 5;
+    let last = '', n = 6;
     for (;;){
       if (tourRun!==id) throw 'aborted';
       if (M && M.paused && M.state !== last){
@@ -993,7 +1115,7 @@ async function tour(){
       await sleep(100);
     }
     await cmd('pause_on_state', false);
-    await until(id, settled, 30);
+    await recovered(id);
     setView('horn');
     await say(id, '0,0 נוצר', 'שלושת הכתמים על הצלבים. המספרים ב"שגיאות" מתחת ל-0.005°, והאמת (בתכלת) מאשרת.', P1(n), 8);
     // ---------------- part 2: keep 0,0
@@ -1003,40 +1125,45 @@ async function tour(){
     await simWait(id, 4);
     setView('horn');
     await say(id, 'מכה בחצובת השופר', 'נזיז את השופר ב-0.08°. PSD-B רואה את השינוי, והמנועים של השופר מחזירים אותו לאפס.', P2(2));
-    await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
+    await cmd('push','horn'); await simWait(id, 1); await recovered(id);
     await say(id, 'השופר חזר', 'הכתם של B חזר לצלב, ובמספרים השופר שוב מתחת ל-0.005°.', P2(3), 6);
     setView('radarUnit');
     await say(id, 'תזוזה קטנה של המכ"ם', 'נזיז את המכ"ם ב-0.02°. הכתם זז על PSD-A (4 מ"מ ב-12 מטר), והמנועים של המכ"ם מחזירים אותו.', P2(4));
-    await cmd('push','radar/0.02'); await simWait(id, 1); setView('horn'); await until(id, settled, 40); await simWait(id, 3);
+    await cmd('push','radar/0.02'); await simWait(id, 1); setView('hornClose'); await recovered(id);
     await say(id, 'המכ"ם חזר', 'שני הצדדים שוב ב-0,0. בניסוי אמיתי המכ"ם נעול בבלם ומתוקן רק בחלון מותר; כאן החלון פתוח לכל החלק הזה.', P2(5), 8);
     await cmd('gap', false); await simWait(id, 2);
     // ---------------- part 3: radar accuracy test with the encoders
     const az = +$('encAz').value || 0.5, el = +$('encEl').value || 0.3;
-    setView('radarUnit');
+    setView('radarMotors');
     await say(id, 'חלק 3: בדיקת דיוק המכ"ם', `קודם מכבים את הלייזרים, כדי שהקרן לא תעבור על אף אחד בזמן שהמכ"ם זז. אחר כך המנועים מזיזים את המכ"ם ב-${az}° אזימוט ו-${el}° גובה, והאנקודרים מחזירים אותו בדיוק לנקודה שממנה הוזז. בסוף הלייזרים נדלקים שוב, וה-PSD בודקים ומכוונים עדין אם צריך. השופר לא זז.`, P3(1));
     await cmd('encoder_test', `${az},${el}`);
-    setView('radarMotors');
+    setView('overview');   // the whole picture: the radar visibly leaves the line to the horn
     await until(id, m => m.enc_test && m.enc_test.moved, 10);
     const mv = M.enc_test.moved.map(v => v.toFixed(4));
-    await say(id, 'הלייזרים כבויים, המכ"ם הוזז', `אין קרן ואין אות על אף PSD. האנקודרים מדדו תזוזה של ${mv[0]}° / ${mv[1]}°. החזרה נעשית רק לפי האנקודרים.`, P3(2));
+    await say(id, 'הלייזרים כבויים, המכ"ם הוזז', `המכ"ם איבד את היישור מול השופר: הקו הצהוב (ציר המכ"ם) יצא מהקו המקווקו שמוביל לשופר. אין קרן ואין אות על אף PSD. האנקודרים מדדו תזוזה של ${mv[0]}° / ${mv[1]}°, ולפיהם בלבד הוא יחזור.`, P3(2));
     await until(id, m => m.enc_test && m.enc_test.after_encoder, 20);
-    setView('horn');
+    setView('hornClose');
     const T3 = M.enc_test, f4 = v => (v>=0?'+':'') + v.toFixed(4) + '°';
     const need = Math.max(...T3.after_encoder.map(Math.abs)) > 0.001;
     await say(id, 'המכ"ם חזר, הלייזרים נדלקו', `לפי האנקודרים בלבד המכ"ם חזר לשגיאה של ${f4(T3.after_encoder[0])} / ${f4(T3.after_encoder[1])} (לפני הבדיקה ${f4(T3.before[0])} / ${f4(T3.before[1])}). `
       + (need ? 'זה מעל 0.001°, ולכן המכ"ם מתכוונן עכשיו עדין לפי ה-PSD.' : 'זה בתוך 0.001°, ולכן אין צורך בכיוון נוסף.'), P3(3));
     await until(id, m => m.enc_test && m.enc_test.phase==='done', 30);
+    await recovered(id);   // the radar is back at 0,0 before the next caption
     if (M.enc_test.refine) await say(id, 'כיוון עדין לפי ה-PSD', `אחרי ${M.enc_test.refine} צעדי כיוון: שגיאת המכ"ם ${f4(M.enc_test.after[0])} / ${f4(M.enc_test.after[1])}, והמכ"ם שוב בבלם.`, P3(4));
-    caption('סוף ההדגמה', 'בלחיצה על "הבא" התצוגה חוזרת למסך הרגיל. שם, ב"לפני ואחרי": השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
+    caption('סוף ההדגמה', REC ? 'נוצר 0,0, נשמר תחת מכות ותזוזות, והמכ"ם חזר לאותה נקודה לפי האנקודרים. כל המספרים: סימולציה עם פרמטרים מונחים.'
+      : 'בלחיצה על "הבא" התצוגה חוזרת למסך הרגיל. שם, ב"לפני ואחרי": השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
     await waitNext(id);
   } catch(e){ if (e!=='aborted' && e!=='fault') console.error(e) }
   await cmd('pause_on_state', false); await cmd('pause', false);
   if (tourRun===id){ tourRun++; caption(null) }
   if (tourRun===id+1) tourScreen(false);
   $('tour').setAttribute('aria-pressed','false'); $('tour').textContent='הדגמה מודרכת';
+  window.__tourDone = true;   // the recorder stops here
 }
 // Full screen with only the simulation stage while the tour runs.
 function tourScreen(on){
+  tr('s', on);
+  if (!on) setAim({h:[0,0], r:[0,0]}, 0.01);
   document.body.classList.toggle('tour-mode', on);
   requestAnimationFrame(resize);
   const fs = document.fullscreenElement;
@@ -1075,6 +1202,7 @@ function log(m){
 
 // ------------------------------------------------------------------ stream
 function onMsg(m){
+  tr('m', m);
   if (m.tolerance_deg && m.tolerance_deg !== TOL){ TOL = m.tolerance_deg; $('tolh').textContent = '±'+TOLS() }
   if (M && m.t < M.t - 0.5) { hist=[]; $('log').innerHTML=''; for(const k in trails) trails[k]=[]; }
   M = m;
@@ -1082,13 +1210,81 @@ function onMsg(m){
   while (hist.length && hist[0].t < m.t-60) hist.shift();
   for (const k of ['A','B','C']) drawPsd(k, m.psd[k], m.psd_geom);
   drawBull(m); drawChart(); drawRaster(m); verdict(m); errText(m); servos(m); beforeAfter(m); pipeline(m); controls(m); log(m);
+  if (document.body.classList.contains('tour-mode')) hud(m);
 }
 function connect(){
   const ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onmessage = e => onMsg(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connect, 1000);
 }
-connect();
+if (REPLAY) startReplay(); else connect();
+
+// ------------------------------------------------------------------ class file player
+// Plays the recorded tour between its stops ("next" points). Next: play on to the
+// following stop (or jump there if a step is still playing). Back: jump to the previous
+// stop. Time inside a step follows the recording; the waits themselves are cut out.
+async function startReplay(){
+  const bin = Uint8Array.from(atob(window.__REPLAY_GZ__), c => c.charCodeAt(0));
+  const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  const ev = JSON.parse(text);   // [ms, kind, data]
+  const stops = []; ev.forEach((e,i)=>{ if (e[1]==='w') stops.push(i) });
+  $('tour').textContent = 'הדגמה (מוקלטת)'; $('tour').setAttribute('aria-pressed','true');
+  document.body.classList.add('replay');
+  let at = -1, playing = null;              // index of the current stop in `stops`
+  const bar = $('replayBar'), prog = $('replayProg');
+  const show = () => { prog.textContent = `שלב ${at+1} מתוך ${stops.length} · הקלטת סימולציה`;
+    $('rBack').disabled = at <= 0; $('rNext').textContent = at >= stops.length-1 ? 'סוף' : 'הבא ←' };
+  function apply(e, instant){
+    const [ , k, d] = e;
+    if (k==='m') onMsg(d);
+    else if (k==='c') d ? caption(d[0], d[1], d[2]) : caption(null);
+    else if (k==='v') setView(d, instant);
+    else if (k==='a') setAim(d[0], instant ? 0.01 : d[1]);
+    else if (k==='s') tourScreenNoFs(d);
+    else if (k==='p') cap.querySelector('.step').textContent = d;
+  }
+  function seek(stop){           // instant: rebuild the state at a stop
+    if (playing){ playing.stop = true; playing = null }
+    const end = stops[stop]; let lastM = null;
+    for (let i = 0; i <= end; i++){ const e = ev[i]; if (e[1]==='m') lastM = e; else apply(e, true) }
+    estAvg = null; estT = null;   // time may run backwards here: restart the displayed average
+    if (lastM) onMsg(lastM[2]);
+    cap.classList.add('on'); at = stop; show();
+  }
+  function play(from, to){       // real time, from event `from` up to the stop at `to`
+    const run = {stop:false}; playing = run;
+    const t0 = performance.now(), e0 = ev[from][0];
+    let i = from;
+    (function tick(){
+      if (run.stop) return;
+      const now = performance.now() - t0;
+      while (i <= to && ev[i][0] - e0 <= now){ apply(ev[i], false); i++ }
+      if (i > to){ playing = null; cap.classList.add('on'); show(); return }
+      requestAnimationFrame(tick);
+    })();
+  }
+  function next(){
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    if (playing){ seek(at); return }               // finish the step at once
+    if (at >= stops.length-1) return;
+    // skip the dead time of the recorded wait: start at the event after its 'g'
+    let f = 0;
+    if (at >= 0){ f = stops[at] + 1; while (f < ev.length && ev[f][1] !== 'g') f++; f++ }
+    at += 1; show(); prog.textContent = `מתקדם לשלב ${at+1}…`; play(f, stops[at]);
+  }
+  function back(){ if (at > 0) seek(at-1) }
+  $('rNext').onclick = next; $('rBack').onclick = back;
+  document.addEventListener('keydown', e => {
+    if ([' ','Enter','ArrowLeft','PageDown'].includes(e.key)){ e.preventDefault(); next() }
+    else if (['ArrowRight','PageUp','Backspace'].includes(e.key)){ e.preventDefault(); back() }
+  });
+  // opens on the first step (the set-up standing in the field, before the manual aim)
+  tourScreenNoFs(true); seek(0);
+}
+function tourScreenNoFs(on){
+  document.body.classList.toggle('tour-mode', on);
+  requestAnimationFrame(resize);
+}
 </script>
 </body>
 </html>
