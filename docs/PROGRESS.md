@@ -291,3 +291,7 @@ Template:
 - Demo: each side now shows its three motorised rotary stages (Newport RV style): Pan on the mast head, Tilt on the fork, Roll behind the horn / radar. Each stage has a stator, a rotor that turns with the axis, a worm-drive motor can whose striped cap spins while it runs, an encoder read head and a status ring (amber = moving, held 1.5 s after the encoder last changed; red = brake; grey = idle). Radar stages drawn 1.35x larger. Drawing only; the servo model is unchanged.
 - New camera presets "horn motors" and "radar motors" (placed from the live unit position). Tour: two new captions after the manual set-up (the motors; the radar motors and the brake), SETUP zooms on the horn motors, part 3 watches the radar motors during the encoder move; ACQUIRE, ALIGN and TRACK captions say which motors act.
 - Checks: `.venv/Scripts/python.exe -m pytest -q` -> 138 passed, 4 xfailed; whole tour driven by "next" in the browser: 21 captions, no page errors.
+
+## 2026-11-17 – Tour caption as a side panel (Liam)
+- The tour caption covered the rig. In tour mode it is now a panel on the right under the status title (width min(420 px, 30 vw)), the 3D canvas takes the area left of it, and the wide views step back 1.25x. Checked in the browser at 1700x900: overview, radar view and radar-motors view, rig clear of the caption; no page errors. Tests: 138 passed, 4 xfailed.
+- "Start alignment" kept: needed outside the tour (free runs, knocks, field conditions, encoder and step tests need TRACK, and a re-run after a tour stopped or failed).

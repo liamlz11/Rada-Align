@@ -134,9 +134,13 @@ body.tour-mode header, body.tour-mode aside, body.tour-mode .row{display:none}
 body.tour-mode main{grid-template-columns:1fr;padding:0;height:100vh}
 body.tour-mode .stage{min-height:0;height:100vh;border-radius:0;border:0}
 body.tour-mode .tourExit{display:block}
-body.tour-mode .caption{inset-inline:10%;bottom:130px;padding:18px 26px}
-body.tour-mode .caption b{font-size:1.7rem}
-body.tour-mode .caption span{font-size:1.3rem;line-height:1.5}
+/* tour: the caption is a side panel under the status title, so the rig stays clear
+   (the 3D view is shifted away from it, see resize()) */
+body.tour-mode .caption{inset-inline:auto;inset-inline-start:18px;top:170px;bottom:auto;width:min(420px,30vw);
+  max-height:calc(100% - 270px);overflow:auto;text-align:start;padding:18px 22px;background:rgba(10,16,22,.82)}
+body.tour-mode .caption b{font-size:1.45rem;margin-bottom:6px}
+body.tour-mode #scene{inset:0 auto 0 0;width:calc(100% - min(420px,30vw) - 36px)}
+body.tour-mode .caption span{font-size:1.12rem;line-height:1.55}
 body.tour-mode .caption .step{font-size:1rem}
 .caption .next{display:none;pointer-events:auto;margin-top:12px;background:var(--survey);color:#14202b;border:0;border-radius:var(--r-sm);
   padding:8px 30px;font-size:1.15rem;font-weight:700;cursor:pointer}
@@ -680,6 +684,9 @@ function viewFor(name, h){
   if (['overview','side','top'].includes(name)){ t[1] += x/2; p[1] += x*0.6; p[2] += x*0.9 }
   if (name==='radar'){ p[1] += x; t[1] += x/2 }
   if (name==='radarUnit'){ p[1] += x; t[1] += x }
+  // guided tour: the canvas is narrower (caption panel), so wide views step back
+  if (document.body.classList.contains('tour-mode') && ['overview','side','top'].includes(name))
+    for (let i=0;i<3;i++) p[i] = t[i] + (p[i]-t[i])*1.25;
   return {p, t};
 }
 function setView(name){
@@ -701,8 +708,10 @@ $('views').querySelectorAll('button').forEach(b=>b.onclick=()=>setView(b.dataset
 orbit.addEventListener('start', ()=>{ tween=null;
   $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false')) });
 function resize(){
-  const r = canvas.parentElement.getBoundingClientRect();
-  renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
+  // the canvas, not the stage: in the guided tour it leaves room for the caption panel
+  const r = canvas.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height;
+  cam.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
 function loop(){ stepTween(); stepRain(); TARGET_MAX.y = 2.5 + Math.max(0, (M ? M.pose.height_m : 0) - 0.6); orbit.target.clamp(TARGET_MIN, TARGET_MAX); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
@@ -1029,6 +1038,7 @@ async function tour(){
 // Full screen with only the simulation stage while the tour runs.
 function tourScreen(on){
   document.body.classList.toggle('tour-mode', on);
+  requestAnimationFrame(resize);
   const fs = document.fullscreenElement;
   try{
     if (on && !fs && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
