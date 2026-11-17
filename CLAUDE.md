@@ -5,22 +5,23 @@ Autonomous system that aligns a horn antenna to a radar in a field test: residua
 Full challenge summary: docs/CHALLENGE.md. Final design (source of truth): docs/FINAL_DESIGN.md. Mentor feedback and gap analysis: docs/MENTOR_FEEDBACK.md. Original slides: docs/slides/. Original Hebrew docs (challenge summary, prompt pack): docs/reference/.
 
 ## Key numbers
+- Requirement tightened to 0.005 deg (mentor, Liam 2026-11-17; DRS value 0.05 deg): 1.05 mm at 12 m, 0.17 mm at 2 m. The demo runs a profile without wind, drift and calibration residuals (rada_align/psd/config.py DEMO_SOURCES); with every assumed source on, 0.005 deg is not reached (docs/FINAL_DESIGN.md 0.3).
 - Distance 10-15 m. 0.05 deg = 873 urad = 10.47 mm at 12 m (d*tan(theta)). Tabletop demo at 2 m: 1.75 mm.
 - Two errors: radar error (radar mechanical boresight vs line of sight to the horn center) and horn error (horn boresight vs reverse line of sight). dx/dh = radar error in mm.
 - Initial manual setup error: up to +/-1 deg and +/-25 cm.
-- Pass criterion: |mean| + 2*sigma < 0.05 deg per axis, both errors, over a 5-10 s window.
+- Pass criterion: |mean| + 2*sigma < 0.005 deg (was 0.05) per axis, both errors, over a 5-10 s window.
 - Final design (docs/FINAL_DESIGN.md): servo travel without X/Z = 1 deg + atan(0.25/d) = 2.43 deg at 10 m (design +/-5 deg). PSD-A moves d*pi/180 per deg of horn error (209.4 mm at 12 m). The 9 mm S5991-01 PSD is fine at 2 m; 12-15 m needs about 21-26 mm under the assumed wind.
 
 ## Requirements
 R1 autonomous detection of Az/El errors | R2 measure orientation of radar AND horn | R3 height difference horn center vs radar axis | R4 automatic correction with motors | R5 show error before and residual after | R6 align horn axis to radar mechanical reference axis | R7 <= +/-0.05 deg Az and El | R8 independent of radar data | R9 repeatable after move or re-setup | R10 field-ready with clear completion indication | R11 keep alignment during the whole test, real-time correction
 
 ## Architecture (decided 2026-11-16: docs/FINAL_DESIGN.md is the source of truth)
-- Raster Scan + PSD + KLT. 3 lasers on one board and the camera on the RADAR, the board clamped to the radar mechanical datum outside the RF aperture, lasers parallel to the radar axis. 3 PSDs on the HORN (Liam, 2026-11-16: the laser must not point at the person aiming the radar; docs/FINAL_DESIGN.md 0.1). PSD-A (no lens) reads the radar error; PSD-B (lens, focal plane) reads the beam angle, so horn error = B/f + radar error (proposal C8: both loops run together); PSD-C (no lens) is a third position reading in the Az/El solution and a cross-check. Both units hang BELOW the radar and the horn (0.40-0.58 m, Liam 2026-11-16), so the relative roll comes from the two inclinometers, not from PSD A/C (docs/FINAL_DESIGN.md 0.2).
+- Raster Scan + PSD + NanoTrack (AI tracker, was KLT; Liam 2026-11-17). 3 lasers on one board and the camera on the RADAR, the board clamped to the radar mechanical datum outside the RF aperture, lasers parallel to the radar axis. 3 PSDs on the HORN (Liam, 2026-11-16: the laser must not point at the person aiming the radar; docs/FINAL_DESIGN.md 0.1). PSD-A (no lens) reads the radar error; PSD-B (lens, focal plane) reads the beam angle, so horn error = B/f + radar error (proposal C8: both loops run together); PSD-C (no lens) is a third position reading in the Az/El solution and a cross-check. Both units hang BELOW the radar and the horn (0.40-0.58 m, Liam 2026-11-16), so the relative roll comes from the two inclinometers, not from PSD A/C (docs/FINAL_DESIGN.md 0.2).
 - Rig rule: matched pattern. Each PSD sits at the mirror position of its laser, so every target is near a PSD centre (proposal C11, rewords D4).
 - Both sides rotate: 6 servos with optical encoders (horn and radar Pan/Tilt/Roll). No X/Z: the height difference (R3) is measured and reported, not removed (proposal C2, DRS Q23).
 - The radar moves only before the test (SCAN, ALIGN). During the test its axes are braked and only monitored; if it moves, the spot drifts on the horn PSDs and the system alerts; correction (radar raster + ALIGN) only in an allowed gap (team decision 2026-11-16; the gap signal is Q21).
 - Continuous 2D PSDs (not quadrant). Laser board adjusted by hand in CALIB only. Raster scan with the radar Pan/Tilt (the emitter side; before the test), no separate scanner. Controller: laptop for the demo, industrial PC for the field (team decisions 2026-11-16).
-- Camera with optical zoom: acquisition (template matching), KLT backup tracking, UI picture. It is not a measuring sensor. Inclinometers: gravity reference, roll, R3 report, cross-check.
+- Camera with optical zoom: acquisition (template matching), NanoTrack backup tracking (OpenCV TrackerNano, ONNX model), UI picture. It is not a measuring sensor. Inclinometers: gravity reference, roll, R3 report, cross-check.
 - Lasers: Class 1 at 960 nm (the PSD peak; Class 2 exists only for visible light; team decision 2026-11-16), focusable 10 mm beam attenuated to about 0.1 mW, modulated, lock-in on the PSD signals, band-pass filter.
 - All links are cabled. No radio near the radar: it works at 4-8 GHz (C-band), which includes 5 GHz WiFi. No GPS.
 - Hardware budget: up to USD 30k for the field system, if justified (mentor, 2026-11-16).

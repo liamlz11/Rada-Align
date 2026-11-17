@@ -191,7 +191,7 @@ class PsdController:
                 self.before_camera = {"side": self.E_NAME, "axes": list(self.E_ERR), "est": [float(v) for v in cam],
                                       "true": [float(tru[i]) for i in self.E_ERR]}
             self._command(self.E_SRV, -np.linalg.solve(self._Jsub(self.E_ERR, self.E_SRV), np.array(cam)))
-            self._log(f"PSD unit found by template match, KLT locked; coarse {self.E_NAME} error {cam[0]:+.3f}/{cam[1]:+.3f} deg")
+            self._log(f"PSD unit found by template match, NanoTrack (AI tracker) locked; coarse {self.E_NAME} error {cam[0]:+.3f}/{cam[1]:+.3f} deg")
             self.sub = "coarse point"
             return
         if self._settled():
@@ -223,11 +223,12 @@ class PsdController:
         enc = self._enc()
         p, t = self.E_SRV
         self.scan_path.append((float(enc[p]), float(enc[t])))
-        if psd["A"].valid or psd["C"].valid:
+        held = [k for k in ("A", "B", "C") if psd[k].valid]
+        if len(held) >= 2:  # 2 of the 3 beams on their PSDs are enough to start
             for i in self.E_SRV:
                 s = self.w.servos[i]
                 s.target = s.pos
-            self._log(f"beam captured on PSD-{'A' if psd['A'].valid else 'C'} after {self._t_state:.1f} s of scan")
+            self._log(f"beam captured on PSD-{'+'.join(held)} after {self._t_state:.1f} s of scan")
             self._goto("ALIGN", "settle")
             return
         if self.w.servos[p].moving or self.w.servos[t].moving:
@@ -244,10 +245,13 @@ class PsdController:
         self.w.servos[t].command(tilt)
 
     # ------------------------------------------------------------ ALIGN
-    def _measure(self, psd, need: tuple[str, ...]):
-        ok = all(psd[k].valid for k in need)
-        on_psd = all(psd[k].valid or psd[k].dip for k in need)  # a dimmed PSD still has its spot
-        self._buf.append((readings_vector(psd), ok, self.w.true_errors(), psd["C"].valid, on_psd))
+    def _measure(self, psd):
+        """One ALIGN sample. Usable when 2 of the 3 PSDs hold the whole spot and one
+        of them is B (the only angle reading): B + A or B + C give the 4 Az/El errors."""
+        held = {k: psd[k].valid or psd[k].dip for k in ("A", "B", "C")}  # a dimmed PSD still has its spot
+        ok = psd["B"].valid and (psd["A"].valid or psd["C"].valid)
+        on_psd = held["B"] and (held["A"] or held["C"])
+        self._buf.append((readings_vector(psd), ok, self.w.true_errors(), psd["C"].valid, on_psd, psd["A"].valid))
 
     def _s_align(self, psd) -> None:
         if self.sub == "settle":
@@ -269,7 +273,7 @@ class PsdController:
                 self.w.servos[2].command(self._roll0 + offset)
             return
         # measure
-        self._measure(psd, ("A", "B"))
+        self._measure(psd)
         if len(self._buf) * self.dt < self.c.align_window_s:
             return
         good = [b for b in self._buf if b[1]]
@@ -289,13 +293,19 @@ class PsdController:
             self._log(f"spot at the PSD edge: {self.E_NAME} re-centred by {rough[0]:+.3f}/{rough[1]:+.3f} deg")
             self.sub = "settle"
             return
+        fa = np.mean([b[5] for b in good])
         use_c = np.mean([b[3] for b in good]) >= 0.8
-        if not use_c and not any(b[3] for b in good) and not psd["C"].detect:
+        if fa < 0.8 and np.mean([b[3] for b in good]) > fa:  # A off its PSD: B + C carry the measurement
+            good = [b for b in good if b[3]]
+            self.use = ("B", "C")
+        elif not use_c and not any(b[3] for b in good) and not psd["C"].detect:
             self.sub = "roll search"
             self._buf = []
             self._roll0 = self.w.servos[2].encoder
             return
-        self.use = ("A", "B", "C") if use_c else ("A", "B")
+        else:
+            good = [b for b in good if b[5]]
+            self.use = ("A", "B", "C") if use_c else ("A", "B")
         m = np.mean([b[0] for b in good], axis=0)
         inc = self.w.read_inclinometers()
         e = self.est_model.estimate(m, self.use, inc)
@@ -405,7 +415,7 @@ class PsdController:
             return
         if self.klt_bridge:
             if self._lost_t >= self.c.short_loss_s:
-                self._log(f"beam back after {self._lost_t:.2f} s (KLT bridged the {self.E_NAME} pointing)")
+                self._log(f"beam back after {self._lost_t:.2f} s (NanoTrack bridged the {self.E_NAME} pointing)")
             else:  # a sample or two off the PSD edge: count it, summarise below
                 self.edge_clips += 1
                 if self._clip_t0 is None:
@@ -413,7 +423,7 @@ class PsdController:
             self.alerts = [a for a in self.alerts if not a.startswith("beam lost")]
         if self._clip_t0 is not None and self.w.t - self._clip_t0 >= self.c.short_loss_summary_s:
             self._log(f"spot left the PSD-A edge {self.edge_clips} times in the last "
-                      f"{self.w.t - self._clip_t0:.0f} s, each < {self.c.short_loss_s:.1f} s (KLT bridged)")
+                      f"{self.w.t - self._clip_t0:.0f} s, each < {self.c.short_loss_s:.1f} s (NanoTrack bridged)")
             self.edge_clips, self._clip_t0 = 0, None
         self.klt_bridge = False
         self._lost_t = 0.0

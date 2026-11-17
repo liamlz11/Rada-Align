@@ -190,6 +190,16 @@ Reading: the changes since that run (units below, 0.60 m height, amplitude gate;
 
 Edge clips in TRACK [sim, pre-existing]: in clear weather at 12 m the braked radar sways 0.05-0.09 deg under the assumed wind, and the spot leaves the 20 mm PSD-A (+/-0.048 deg) for one or two samples, 3-90 times a minute (10 seeds; the same before today's changes). Rain does not cause them. The controller bridges them with KLT as before; the log now counts losses shorter than `control.short_loss_s` and prints one summary line per `short_loss_summary_s` instead of one "beam back" line each. This is the field-PSD-size question (section 7.1).
 
+## 0.3 Requirement 0.005 deg, demo profile, NanoTrack, 2-of-3 capture (Liam, 2026-11-17)
+
+- Requirement R7 tightened to 0.005 deg (the mentor's request; DRS value 0.05 deg). Controller thresholds scaled x0.1: deadband 0.001, horn TRACK threshold 0.003, radar alert 0.003 deg.
+- With every assumed error source on, no run reaches TRACK: 200/200 at each of 2, 12 and 15 m end in "no convergence in ALIGN" [sim]. One source at a time (40 runs): wind alone 0 %; calibration residuals alone TRUE 0 %; laser-board residual alone TRUE 20 %; drift, PSD noise, inclinometer, rangefinder, camera alone 100 %.
+- Demo profile (Liam: remove disturbances if needed): wind, drift, laser and calibration residuals off, sensor noise on (`DEMO_SOURCES`). Monte Carlo `--profile demo`, 200 runs, reported / TRUE / false accepts / incl. U_bias: 2 m 99.5 / 98.0 / 1.5 / 0.0 %; 12 m 100 / 100 / 0 / 96.0 %; 15 m 100 / 100 / 0 / 98.5 %. At 2 m U_bias is 0.0039 deg (inclinometer bias through the 0.4 m lever). The Monte Carlo default stays the full set.
+- Reading: the method resolves 0.005 deg; wind on the braked radar and the calibration residuals as assumed do not allow it. A field system at 0.005 deg needs wind shielding / a stiffer stand and a calibration about 10x better than assumed.
+- Camera tracker: NanoTrack (lightweight AI tracker, OpenCV TrackerNano with ONNX models) replaces KLT for the backup tracking; same role, modelled the same way.
+- Capture: SCAN ends when 2 of the 3 beams are whole on their PSDs; ALIGN uses B plus A, or B plus C when A is off its PSD (both rank 4, same U_bias).
+- Tests: the superseded mutual-sighting controller cannot meet 0.005 deg under its own noise; 4 of its tests are xfail(strict) with that reason.
+
 ## 1. The design, D1-D12
 
 | # | Decision | Our note |

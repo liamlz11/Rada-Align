@@ -52,6 +52,7 @@ def _positions(sim):
 
 
 # --------------------------------------------------------------------- TRACK
+@pytest.mark.xfail(strict=True, reason="superseded mutual-sighting design: its assumed noise (2 sigma ~0.03 deg) cannot meet the 0.005 deg requirement (Liam, 2026-11-17)")
 def test_track_corrects_only_beyond_the_drift_threshold():
     sim, ctrl = _make(QUIET, **SLOW_DRIFT)
     ctrl.start()
@@ -72,6 +73,7 @@ def test_track_corrects_only_beyond_the_drift_threshold():
     assert abs(sim.world.true_errors_deg()["radar_az"]) < TOL
 
 
+@pytest.mark.xfail(strict=True, reason="superseded mutual-sighting design: its assumed noise (2 sigma ~0.03 deg) cannot meet the 0.005 deg requirement (Liam, 2026-11-17)")
 def test_track_does_not_move_for_jitter_it_cannot_fix(monkeypatch):
     """Mean far inside the drift threshold, jitter just under the "unstable"
     limit: the criterion fails, the display says so, and nothing moves."""
@@ -105,6 +107,7 @@ def test_track_does_not_move_for_jitter_it_cannot_fix(monkeypatch):
 
 
 # ---------------------------------------------------------------- P2: U_bias
+@pytest.mark.xfail(strict=True, reason="superseded mutual-sighting design: its assumed noise (2 sigma ~0.03 deg) cannot meet the 0.005 deg requirement (Liam, 2026-11-17)")
 def test_status_reports_score_with_calibration_uncertainty():
     result = run_single(CFG, seed=1)
     assert result.aligned

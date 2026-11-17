@@ -148,7 +148,9 @@ class PsdConfig:
         return _replace_path(self, path.split("."), value)
 
 
-TOLERANCE_DEG = 0.05  # REQUIREMENT R7 (geometry.tolerance_deg in the legacy section)
+# REQUIREMENT R7, tightened by the team (Liam, 2026-11-17) from the DRS value 0.05 deg
+# to 0.005 deg. Keep equal to geometry.tolerance_deg in config.yaml (legacy section).
+TOLERANCE_DEG = 0.005
 
 # Error sources and the fields that switch each off (zero-noise tests, studies).
 ERROR_SOURCES: dict[str, tuple[str, ...]] = {
@@ -162,6 +164,15 @@ ERROR_SOURCES: dict[str, tuple[str, ...]] = {
     "rangefinder": ("rangefinder.sigma_m",),
     "camera": ("camera.acquire_sigma_deg",),
 }
+
+
+# Demo profile (Liam, 2026-11-17, with the 0.005 deg requirement): the demo runs with
+# wind, slow drift, laser-board and calibration residuals OFF and sensor noise ON.
+# Measured at 0.005 deg (40 runs each, one source on): wind alone -> 0 % (no
+# convergence in ALIGN); calib alone -> TRUE 0 %; laser alone -> TRUE 20 %;
+# drift alone passes, but the braked radar then drifts past 0.005 deg within a
+# minute of TRACK. The full set stays the default for the Monte Carlo.
+DEMO_SOURCES: tuple[str, ...] = ("psd_noise", "inclinometer", "rangefinder", "camera")
 
 
 def quiet(cfg: PsdConfig, keep: tuple[str, ...] = ()) -> PsdConfig:

@@ -12,7 +12,7 @@ import argparse
 
 import numpy as np
 
-from .config import WEATHERS, load_psd_config, quiet
+from .config import DEMO_SOURCES, WEATHERS, load_psd_config, quiet
 from .controller import PsdController
 from .world import World
 
@@ -70,12 +70,16 @@ def main(argv=None) -> int:
     p.add_argument("--distance", type=float, default=12.0)
     p.add_argument("--keep", nargs="*", default=None,
                    help="error sources to keep (default: all on); e.g. --keep wind")
+    p.add_argument("--profile", choices=("full", "demo"), default="full",
+                   help="full: every assumed error source (default); demo: the demo profile (config.DEMO_SOURCES)")
     p.add_argument("--weather", choices=WEATHERS, default="clear",
                    help="field condition (same seeds as clear: paired comparison)")
     args = p.parse_args(argv)
     cfg = load_psd_config()
     if args.keep is not None:
         cfg = quiet(cfg, tuple(args.keep))
+    elif args.profile == "demo":
+        cfg = quiet(cfg, DEMO_SOURCES)
     r = run(cfg, args.runs, args.distance, weather=args.weather)
     print(f"final design Monte Carlo, {r['runs']} runs at {r['distance_m']} m, weather {r['weather']} (SIMULATION, assumed parameters)")
     print(f"  reported pass {r['reported_pass']:.1%} | TRUE pass {r['true_pass']:.1%} | false accepts {r['false_accept']:.1%}")

@@ -8,7 +8,7 @@ from collections import deque
 
 import numpy as np
 
-from .config import TOLERANCE_DEG, PsdConfig, quiet, ERROR_SOURCES
+from .config import DEMO_SOURCES, TOLERANCE_DEG, PsdConfig, quiet
 from .controller import STATES, PsdController
 from .model import ERROR_NAMES, PSDS, SERVO_NAMES
 from .world import World
@@ -42,9 +42,11 @@ class PsdSession:
         self.speed = 1.0
         self.ac_size_mm = cfg.sensor.ac_size_mm
         self.wind_scale = 1.0
-        self.ideal_calib = False
+        self.field_errors = False  # False: demo profile (config.DEMO_SOURCES); True: every assumed source
         self.height_m: float | None = None  # None = scenario default from config
         self.weather = "clear"
+        self.paused = False  # the guided tour freezes the simulation while a caption is read
+        self.pause_on_state = False  # tour: freeze at every controller state change
         self._lock = threading.Lock()
         self._messages: deque[dict] = deque(maxlen=100)
         self._seq = 0
@@ -54,8 +56,8 @@ class PsdSession:
 
     def _build(self) -> None:
         cfg = self.base_cfg
-        if self.ideal_calib:  # calibration residuals off, every other source on
-            cfg = quiet(cfg, tuple(k for k in ERROR_SOURCES if k not in ('laser', 'calib')))
+        if not self.field_errors:  # demo profile: wind, drift, laser and calibration residuals off
+            cfg = quiet(cfg, DEMO_SOURCES)
         self.world = World(cfg, self.seed, self.distance_m, height_m=self.height_m)
         self.world.ac_size_mm = self.ac_size_mm
         self.world.wind_scale = self.wind_scale
@@ -71,6 +73,9 @@ class PsdSession:
             w, c = self.world, self.ctrl
             if name == "start":
                 c.start()
+                if self.pause_on_state:  # IDLE -> CALIB happens here, not in a tick
+                    self.paused = True
+                    self._publish()  # the stepping loop is frozen: publish CALIB now
             elif name == "stop":
                 c.stop()
             elif name == "new_setup":
@@ -102,9 +107,13 @@ class PsdSession:
             elif name == "gap":
                 c.radar_gap = bool(value)
                 c._log("radar correction gap " + ("ALLOWED" if c.radar_gap else "closed"))
-            elif name == "ideal_calib":
-                self.ideal_calib = bool(value)
+            elif name == "field_errors":
+                self.field_errors = bool(value)
                 self._build()
+            elif name == "pause":
+                self.paused = bool(value)
+            elif name == "pause_on_state":
+                self.pause_on_state = bool(value)
             elif name == "speed":
                 self.speed = float(np.clip(float(value), 0.25, 8.0))
             else:
@@ -114,8 +123,12 @@ class PsdSession:
     # --------------------------------------------------------------- stepping
     def step_once(self) -> dict | None:
         with self._lock:
+            before = self.ctrl.state
             self.ctrl.tick()
             self.world.step(self.dt)
+            if self.pause_on_state and self.ctrl.state != before:
+                self.paused = True
+                self._next_pub = self.world.t  # publish the new state at once
             if self.world.t >= self._next_pub:
                 self._next_pub = self.world.t + 1.0 / self.PUBLISH_HZ
                 return self._publish()
@@ -127,6 +140,10 @@ class PsdSession:
         def loop():
             next_t = time.perf_counter()
             while self._running:
+                if self.paused:
+                    time.sleep(0.05)
+                    next_t = time.perf_counter()
+                    continue
                 n = max(1, round(self.speed))
                 frac = self.speed / n
                 for _ in range(n):
@@ -183,6 +200,7 @@ class PsdSession:
             "sim": True,
             "t": _f(w.t, 2),
             "speed": self.speed,
+            "paused": self.paused,
             "state": c.state,
             "sub": c.sub,
             "states": list(STATES),
@@ -197,7 +215,7 @@ class PsdSession:
             "radar_braked": all(w.servos[i].braked for i in (3, 4, 5)),
             "blocked": w.blocked,
             "wind_scale": self.wind_scale,
-            "ideal_calib": self.ideal_calib,
+            "field_errors": self.field_errors,
             "weather": w.weather,
             "transmission": _f(w.transmission, 4),
             "rain_mm_h": w.rain_mm_h,

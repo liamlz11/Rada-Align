@@ -262,3 +262,9 @@ Template:
 - docs/DEMO_GUIDE.md: Hebrew operator guide for the team (start-up, every dashboard element and number, states, tour script, field conditions, numbers to quote, log glossary, faults, Q&A, what not to claim).
 - Offline (Liam: "Yes, bundle it"): three.js 0.160.0 (MIT) and IBM Plex Sans Hebrew 300-700 (OFL, hebrew + latin subsets) bundled in rada_align/psd/static/vendor (sources in vendor/README.md), served at /vendor. Checked in the browser: no external requests, font and 3D scene load. New test: page has no http(s) URL and the vendor files are served.
 - Tests: `.venv/Scripts/python.exe -m pytest -q` -> 139 passed.
+
+## 2026-11-17 – Requirement 0.005 deg, demo profile, NanoTrack, 2-of-3 capture, tour pauses (Liam)
+- Requirement R7 0.005 deg (mentor); controller thresholds x0.1. Full assumed physics: 0 % at 2/12/15 m (600/600 "no convergence in ALIGN"). Dominant cause: wind (alone 0 %), then calibration residuals (alone TRUE 0 %). Demo profile without wind, drift, laser and calibration residuals (Liam: remove disturbances if needed): 2 m 99.5 / 98.0 / 1.5 % (incl. U_bias 0 %), 12 m 100 / 100 / 0 % (96.0 %), 15 m 100 / 100 / 0 % (98.5 %). Details: FINAL_DESIGN 0.3, DEMO_GUIDE 0.
+- KLT renamed NanoTrack (AI tracker) in the demo, log and docs. SCAN ends on 2 of 3 PSDs; ALIGN uses B+A or B+C. Transparent windows on all three PSDs in the 3D view. Demo toggle "full field disturbances" replaces "ideal calibration".
+- Guided tour: the simulation pauses 6-8 s on every caption and every controller state change (server `pause`, `pause_on_state`). Fixed: wait after "new setup" used the old clock (11 s dead time); CALIB had no caption.
+- Tests: `.venv/Scripts/python.exe -m pytest -q` -> 135 passed, 4 xfailed (superseded mutual-sighting controller cannot meet 0.005 deg). Edge-clip log test now reaches TRACK in the demo profile and uses 40 ms beam blocks.

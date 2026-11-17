@@ -153,7 +153,7 @@ td.num{text-align:end}
 </head>
 <body>
 <header>
-  <div class="brand">RADA-Align<small>יישור אוטונומי שופר–מכ"ם: סריקה, PSD ו-KLT</small></div>
+  <div class="brand">RADA-Align<small>יישור אוטונומי שופר–מכ"ם: סריקה, PSD ו-NanoTrack</small></div>
   <span class="simtag">סימולציה · פרמטרים מונחים</span>
   <div class="spacer"></div>
   <span class="ctl-label">מרחק</span>
@@ -193,7 +193,7 @@ td.num{text-align:end}
 
   <div class="row">
     <section class="card" aria-label="שגיאות">
-      <h2>שגיאות מול סף ±0.05°<small>מדווח מה-PSD · אמת בתכלת</small></h2>
+      <h2>שגיאות מול סף <span class="num" id="tolh">±0.005°</span><small>מדווח מה-PSD · אמת בתכלת</small></h2>
       <div class="errs" id="errs">
         <span></span><span class="h">אזימוט</span><span class="h">גובה</span>
         <span>מכ"ם</span><span class="v num" id="er_az">—</span><span class="v num" id="er_el">—</span>
@@ -241,7 +241,7 @@ td.num{text-align:end}
       <h2>מדיניות ותצורה</h2>
       <div class="btns">
         <button class="btn" id="gap" aria-pressed="false">חלון תיקון למכ"ם</button>
-        <button class="btn" id="ideal" aria-pressed="false">כיול אידיאלי</button>
+        <button class="btn" id="field" aria-pressed="false">הפרעות שטח מלאות</button>
       </div>
       <div class="ctlrow"><span class="ctl-label">המכ"ם גבוה מהשופר ב-</span>
         <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button></div></div>
@@ -277,11 +277,12 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const C = {ir:css('--ir'), irdim:css('--ir-dim'), survey:css('--survey'), signal:css('--signal'),
   truth:css('--truth'), ink:css('--ink'), ink2:css('--ink-2'), ink3:css('--ink-3'), rule:css('--rule'),
   panel:css('--panel'), ok:css('--ok'), field:css('--field')};
-const TOL = 0.05;
+let TOL = 0.005;  // requirement R7; replaced by tolerance_deg from the server stream
+const TOLS = () => TOL + '°';
 const STATE_HE = {IDLE:'המתנה',CALIB:'כיול',SETUP:'הצבה',ACQUIRE:'איתור',SCAN:'סריקה',ALIGN:'יישור',VERIFY:'אימות',TRACK:'מעקב',FAULT:'תקלה'};
 const STATE_WHY = {IDLE:'לחץ "התחל יישור"', CALIB:'טוען קובץ כיול ומודד מרחק', SETUP:'מפלס roll בשני הצדדים לפי מדי הזווית',
-  ACQUIRE:'המצלמה על המכ"ם מזהה את יחידת ה-PSD שעל השופר (template matching) ו-KLT ננעל', SCAN:'סריקת raster עם Pan/Tilt של המכ"ם עד שהקרן נתפסת',
-  ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי מדי הזווית', VERIFY:'5 שניות בלי תיקון: |mean|+2σ < 0.05° בכל ציר',
+  ACQUIRE:'המצלמה על המכ"ם מזהה את יחידת ה-PSD שעל השופר (template matching) ועוקב AI (NanoTrack) ננעל', SCAN:'סריקת raster עם Pan/Tilt של המכ"ם עד שהקרן נתפסת',
+  ALIGN:'PID על כל ציר: המכ"ם מאפס את PSD-A, השופר את PSD-B, roll לפי מדי הזווית', VERIFY:'5 שניות בלי תיקון: |mean|+2σ מתחת לסף בכל ציר',
   TRACK:'השופר מתקן, המכ"ם בבלם ומנוטר', FAULT:''};
 const PIPE = ['CALIB','SETUP','ACQUIRE','SCAN','ALIGN','VERIFY','TRACK'];
 const WX_HE = {clear:'בהיר', rain_light:'גשם קל', rain_heavy:'גשם חזק', fog:'ערפל', shimmer:'אדי חום', sun:'שמש ישירה'};
@@ -303,7 +304,7 @@ $('knockr').onclick=()=>cmd('push','radar');
 $('blockS').onclick=()=>cmd('block',0.6);
 $('blockL').onclick=()=>cmd('block',3.0);
 $('gap').onclick=()=>cmd('gap', !(M&&M.radar_gap));
-$('ideal').onclick=()=>{hist=[];cmd('ideal_calib', !(M&&M.ideal_calib))};
+$('field').onclick=()=>{hist=[];cmd('field_errors', !(M&&M.field_errors))};
 $('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
 $('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
 for (const [id,name] of [['dist','distance'],['speed','speed'],['psdsize','psd_size'],['height','height']])
@@ -457,9 +458,12 @@ function buildPose(P){
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.07),
       new THREE.MeshStandardMaterial({color:k==='B'?0x34465a:0x1a2733, emissive:0x000000, metalness:.2, roughness:.6}));
     plate.position.copy(refT).add(B(0.03, -y, z)); add(TS, plate); psdMesh[k]=plate;
-    if (k==='B'){ const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.03,24),
-        new THREE.MeshStandardMaterial({color:0x8fb8d8,metalness:.1,roughness:.05,transparent:true,opacity:.6}));
-      lens.rotation.z=Math.PI/2; lens.position.copy(plate.position).add(new THREE.Vector3(0.03,0,0)); add(TS, lens); }
+    // a round transparent window in front of every PSD: the lens for B (thick),
+    // the 960 nm band-pass filter window for A and C (thin, no focusing)
+    { const lensB = k==='B';
+      const win = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,lensB?0.03:0.012,24),
+        new THREE.MeshStandardMaterial({color:0x8fb8d8,metalness:.1,roughness:.05,transparent:true,opacity:lensB?.6:.45}));
+      win.rotation.z=Math.PI/2; win.position.copy(plate.position).add(new THREE.Vector3(lensB?0.03:0.016,0,0)); add(TS, win); }
   }
   // each unit is one rigid board hanging BELOW its axis on a strut (outside the RF aperture)
   const zs = Object.values(P.lasers_m).map(v => v[1]), ys = Object.values(P.lasers_m).map(v => v[0]);
@@ -579,7 +583,7 @@ function drawPsd(k, s, geom){
   const size = k==='B' ? geom.b_size_mm : geom.ac_size_mm, half=size/2, sc=(W/2-8)/half, cx=W/2, cy=W/2;
   g.fillStyle='#101a23'; g.fillRect(cx-half*sc, cy-half*sc, size*sc, size*sc);
   g.strokeStyle=C.rule; g.lineWidth=1; g.strokeRect(cx-half*sc+.5, cy-half*sc+.5, size*sc-1, size*sc-1);
-  // tolerance ring: 0.05 deg in mm on this PSD
+  // tolerance ring: the requirement in mm on this PSD
   const tolmm = (k==='B'? geom.mm_per_deg_b : geom.mm_per_deg_ac)*TOL;
   if (tolmm < half*1.5){g.setLineDash([3,3]); g.strokeStyle=C.survey; g.globalAlpha=.6; g.beginPath(); g.arc(cx,cy,Math.min(tolmm,half*1.4)*sc,0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=1}
   g.strokeStyle=C.ink3; g.beginPath(); g.moveTo(cx-8,cy); g.lineTo(cx+8,cy); g.moveTo(cx,cy-8); g.lineTo(cx,cy+8); g.stroke();
@@ -605,7 +609,7 @@ function drawBull(m){
   g.strokeStyle=C.rule; g.lineWidth=1;
   for (const r of [0.025,0.075,0.1]){g.beginPath();g.arc(cx,cy,r*sc,0,7);g.stroke()}
   g.strokeStyle=C.survey; g.lineWidth=1.5; g.beginPath(); g.arc(cx,cy,TOL*sc,0,7); g.stroke();
-  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('0.05°', cx+TOL*sc*0.72, cy-TOL*sc*0.72);
+  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText(TOLS(), cx+TOL*sc*0.72+4, cy-TOL*sc*0.72-4);
   g.strokeStyle=C.rule; g.beginPath(); g.moveTo(cx-R0,cy); g.lineTo(cx+R0,cy); g.moveTo(cx,cy-R0); g.lineTo(cx,cy+R0); g.stroke();
   const clip = v => Math.max(-span, Math.min(span, v));
   const pt = (az,el,col,fill,label) => { const x=cx+clip(az)*sc, y=cy-clip(el)*sc;
@@ -627,7 +631,7 @@ function drawChart(){
   line(p=>p.tr?p.tr[2]:null, C.truth, 1);
   line(p=>p.e?p.e[0]:null, C.ink2); line(p=>p.e?p.e[1]:null, '#5f7a8f');
   line(p=>p.e?p.e[2]:null, C.survey, 2); line(p=>p.e?p.e[3]:null, '#e9a23b', 2);
-  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('+0.05°',4,sy(TOL)-3); g.fillText('-0.05°',4,sy(-TOL)+12);
+  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('+'+TOLS(),4,sy(TOL)-3); g.fillText('-'+TOLS(),4,sy(-TOL)+12);
 }
 
 function drawRaster(m){
@@ -653,11 +657,11 @@ function verdict(m){
     const strict = m.aligned_with_bias;
     big.textContent = strict ? 'מיושר ל-0,0, כולל אי-ודאות כיול' : 'מיושר ל-0,0 (מדוד)';
     v.className = 'verdict' + (strict ? ' aligned' : ' measured');
-    why.innerHTML = tw ? `|mean|+2σ מקסימלי <span class="num">${Math.max(...tw.score).toFixed(4)}°</span> &lt; 0.05°`
-      + (tw.score_with_bias ? `; עם U<sub>bias</sub>: <span class="num">${Math.max(...tw.score_with_bias).toFixed(4)}°</span>${strict ? '' : ' (מעל 0.05°: הכיול לא מספיק טוב כדי להבטיח)'}` : '')
+    why.innerHTML = tw ? `|mean|+2σ מקסימלי <span class="num">${Math.max(...tw.score).toFixed(4)}°</span> &lt; ${TOLS()}`
+      + (tw.score_with_bias ? `; עם U<sub>bias</sub>: <span class="num">${Math.max(...tw.score_with_bias).toFixed(4)}°</span>${strict ? '' : ` (מעל ${TOLS()}: הכיול לא מספיק טוב כדי להבטיח)`}` : '')
       + ' · המכ"ם בבלם' : '';
     return }
-  big.textContent = m.klt_bridge ? 'הקרן חסומה, KLT מגשר' : STATE_HE[m.state];
+  big.textContent = m.klt_bridge ? 'הקרן חסומה, NanoTrack מגשר' : STATE_HE[m.state];
   why.innerHTML = (STATE_WHY[m.state]||'') + (m.sub && m.state!=='IDLE' ? ` <span class="ltr" style="color:var(--ink-3)">(${m.sub})</span>` : '');
 }
 function errText(m){
@@ -683,11 +687,11 @@ function servos(m){
 }
 // log scale 0.001..1 deg so the before (~1 deg) and after (~0.01 deg) share one axis
 const LOGW = v => Math.max(0, Math.min(1, (Math.log10(Math.max(Math.abs(v),1e-3))+3)/3))*100;
-const TOLW = LOGW(TOL);
+
 function baCell(v, t, after){
   const col = Math.abs(v) < TOL ? (after ? C.survey : C.ink2) : C.signal;
   return `<div class="cell"><span class="num">${after ? v.toFixed(4) : fmt(v,3)}°</span>
-    <div class="bar" style="--tol:${TOLW}%"><i style="width:${LOGW(v)}%;background:${col}"></i></div>
+    <div class="bar" style="--tol:${LOGW(TOL)}%"><i style="width:${LOGW(v)}%;background:${col}"></i></div>
     <span class="t num">אמת ${after ? t.toFixed(4) : fmt(t,3)}°</span></div>`;
 }
 function beforeAfter(m){
@@ -704,8 +708,8 @@ function beforeAfter(m){
   h+='</div>';
   if (a){
     const gain = Math.max(...b.slice(0,4).map(Math.abs)) / Math.max(...a);  // worst axis before / worst after
-    h+=`<div class="ba-sum">שיפור ×<span class="num">${gain.toFixed(0)}</span> · אמת: <b class="${m.after.truth_pass?'':'no'}">${m.after.truth_pass?'עובר':'לא עובר (שאריות כיול; ראו "כיול אידיאלי")'}</b>`
-      + ` · כולל U<sub>bias</sub>: <b class="${m.after.pass_with_bias?'':'no'}">${m.after.pass_with_bias?'עובר':'לא מובטח'}</b><br><span style="color:var(--ink-3);font-size:.76rem">סקאלה לוגריתמית 0.001°–1°, הקו הצהוב = 0.05°</span></div>`;
+    h+=`<div class="ba-sum">שיפור ×<span class="num">${gain.toFixed(0)}</span> · אמת: <b class="${m.after.truth_pass?'':'no'}">${m.after.truth_pass?'עובר':'לא עובר (שאריות כיול; ראו "הפרעות שטח מלאות")'}</b>`
+      + ` · כולל U<sub>bias</sub>: <b class="${m.after.pass_with_bias?'':'no'}">${m.after.pass_with_bias?'עובר':'לא מובטח'}</b><br><span style="color:var(--ink-3);font-size:.76rem">סקאלה לוגריתמית 0.001°–1°, הקו הצהוב = ${TOLS()}</span></div>`;
   }
   el.innerHTML=h;
 }
@@ -729,42 +733,66 @@ async function until(id, pred, simTimeout){
   }
   throw 'aborted';
 }
-const simWait = (id, dt) => { const t0 = M ? M.t : 0; return until(id, m => m.t - t0 >= dt, dt + 1) };
+// sim-time wait; a reset of the sim clock (new setup) restarts the count
+const simWait = (id, dt) => { let t0 = M ? M.t : 0; return until(id, m => { if (m.t < t0) t0 = m.t; return m.t - t0 >= dt }, dt + 1) };
 const settled = m => m.state==='TRACK' && m.aligned && !m.klt_bridge;
+// Each caption is shown with the simulation PAUSED for a few seconds, then the
+// simulation resumes, so nothing moves on while the audience reads.
+const READ_S = 6;
+async function hold(id, seconds){
+  const t0 = performance.now();
+  while (performance.now() - t0 < seconds*1000){ if (tourRun!==id) throw 'aborted'; await sleep(120) }
+}
+async function say(id, title, text, step, seconds = READ_S){
+  await cmd('pause', true); caption(title, text, step);
+  await hold(id, seconds);
+  await cmd('pause', false);
+}
 async function tour(){
   const id = ++tourRun; $('tour').setAttribute('aria-pressed','true'); $('tour').textContent='עצור הדגמה';
   const N = 8, S = i => `שלב ${i} מתוך ${N}`;
   try{
     if (M && M.radar_gap) await cmd('gap', false);
     if (M && M.weather !== 'clear') await cmd('weather', 'clear');
+    await cmd('speed', 1);
     hist=[]; await cmd('new_setup'); setView('overview');
-    caption('הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1));
-    await simWait(id, 0.5); await sleep(2500);
-    await cmd('start');
-    caption('יישור אוטונומי', 'כיול, פילוס, איתור במצלמה, סריקת raster ו-PID עד אימות של 5 שניות.', S(2));
-    let lastState = '';
-    await until(id, m => {
-      if (m.state !== lastState){ lastState = m.state;
-        if (m.state==='SCAN') setView('top'); if (m.state==='ALIGN') setView('horn'); if (m.state==='VERIFY') setView('side');
-        if (PIPE.includes(m.state)) caption(`יישור אוטונומי · ${STATE_HE[m.state]}`, STATE_WHY[m.state], S(2)); }
-      return settled(m) }, 120);
-    setView('overview');
-    caption('מיושר', 'המערכת במעקב: השופר מתקן ברציפות, המכ"ם בבלם ומנוטר.', S(3));
-    await simWait(id, 6);
-    caption('מכה בחצובת השופר', 'השופר זז. PSD-B רואה את השינוי והשופר לבדו חוזר לאפס.', S(4));
+    await simWait(id, 0.3);
+    await say(id, 'הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1), 8);
+    // step 2: the server freezes at every state change; explain it, then resume
+    await cmd('pause_on_state', true); await cmd('start');
+    let last = '';
+    for (;;){
+      if (tourRun!==id) throw 'aborted';
+      if (M && M.paused && M.state !== last){
+        last = M.state;
+        if (last==='SCAN') setView('top'); if (last==='ALIGN') setView('horn'); if (last==='VERIFY') setView('side'); if (last==='TRACK') setView('overview');
+        if (last==='FAULT'){ caption('תקלה', M.fault_reason, S(2)); await hold(id, READ_S); break }
+        if (PIPE.includes(last)) caption(`יישור אוטונומי · ${STATE_HE[last]}`, STATE_WHY[last], S(2));
+        await hold(id, READ_S); await cmd('pause', false);
+      }
+      if (M && last==='TRACK' && !M.paused) break;
+      await sleep(100);
+    }
+    await cmd('pause_on_state', false);
+    if (M && M.state==='FAULT') throw 'fault';
+    await until(id, settled, 30);
+    await say(id, 'מיושר', 'המערכת במעקב: השופר מתקן ברציפות, המכ"ם בבלם ומנוטר.', S(3));
+    await simWait(id, 4);
+    await say(id, 'מכה בחצובת השופר', 'עכשיו נזיז את השופר. PSD-B יראה את השינוי, והשופר לבד יחזור לאפס.', S(4));
     await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
-    caption('חסימה קצרה של הקרן', 'מישהו עובר בקו. ה-KLT במצלמה מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
+    await say(id, 'חסימה קצרה של הקרן', 'עכשיו מישהו עובר בקו. עוקב ה-AI במצלמה (NanoTrack) מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
     await cmd('block',0.6); await simWait(id, 1); await until(id, settled, 20); await simWait(id, 3);
-    caption('גשם קל', 'בסימולציה: כשטיפה פוגעת בחלון היא מעמעמת PSD אחד; הדגימה נפסלת והמעקב ממשיך.', S(6));
+    await say(id, 'גשם קל', 'בסימולציה: כשטיפה פוגעת בחלון היא מעמעמת PSD אחד; הדגימה נפסלת והמעקב ממשיך.', S(6));
     await cmd('weather','rain_light'); await simWait(id, 25); await cmd('weather','clear'); await simWait(id, 2);
-    caption('מכה בחצובת המכ"ם', 'המכ"ם בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(7));
+    await say(id, 'מכה בחצובת המכ"ם', 'עכשיו נזיז את המכ"ם. הוא בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(7));
     await cmd('push','radar'); await simWait(id, 5);
-    caption('חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(8));
+    await say(id, 'חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(8));
     await cmd('gap', true); await simWait(id, 1); await until(id, settled, 60); await cmd('gap', false);
     await simWait(id, 3);
     caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
-    await sleep(6000);
-  } catch(e){ if (e!=='aborted') console.error(e) }
+    await hold(id, 8);
+  } catch(e){ if (e!=='aborted' && e!=='fault') console.error(e) }
+  await cmd('pause_on_state', false); await cmd('pause', false);
   if (tourRun===id){ tourRun++; caption(null) }
   $('tour').setAttribute('aria-pressed','false'); $('tour').textContent='הדגמה מודרכת';
 }
@@ -772,7 +800,7 @@ $('tour').onclick = () => { if ($('tour').getAttribute('aria-pressed')==='true')
 function pipeline(m){
   const idx = PIPE.indexOf(m.state);
   pipe.querySelectorAll('.st').forEach((d,i)=>{d.className='st'+(m.state==='FAULT'?'':i<idx?' done':i===idx?' now':'')});
-  subEl.textContent = m.state==='TRACK' ? (m.klt_bridge?'KLT מגשר על חסימה':'מעקב: שופר מתקן, מכ"ם בבלם ומנוטר') : '';
+  subEl.textContent = m.state==='TRACK' ? (m.klt_bridge?'NanoTrack מגשר על חסימה':'מעקב: שופר מתקן, מכ"ם בבלם ומנוטר') : '';
 }
 function controls(m){
   const set=(id,val)=>$(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.v===val)));
@@ -782,7 +810,7 @@ function controls(m){
   $('wxinfo').innerHTML = m.weather==='clear' ? '' : `${WX_HE[m.weather]}: ${WX_WHY[m.weather]} · אובדן עוצמה במסלול <span class="num">${loss.toFixed(loss<1?2:0)}%</span> <span style="color:var(--ink-3)">(מודל עם פרמטרים מונחים)</span>`;
   const wx=$('wx'); wx.style.display = m.weather==='clear' ? 'none' : 'block'; wx.textContent = WX_HE[m.weather]||'';
   setWeatherScene(m);
-  $('gap').setAttribute('aria-pressed', String(m.radar_gap)); $('ideal').setAttribute('aria-pressed', String(m.ideal_calib));
+  $('gap').setAttribute('aria-pressed', String(m.radar_gap)); $('field').setAttribute('aria-pressed', String(m.field_errors));
   $('alerts').textContent = m.alerts.join(' · ');
 }
 function log(m){
@@ -792,6 +820,7 @@ function log(m){
 
 // ------------------------------------------------------------------ stream
 function onMsg(m){
+  if (m.tolerance_deg && m.tolerance_deg !== TOL){ TOL = m.tolerance_deg; $('tolh').textContent = '±'+TOLS() }
   if (M && m.t < M.t - 0.5) { hist=[]; $('log').innerHTML=''; for(const k in trails) trails[k]=[]; }
   M = m;
   hist.push({t:m.t, e:m.est && m.state!=='SCAN' ? m.est.slice(0,4) : null, tr:m.truth.slice(0,4)});

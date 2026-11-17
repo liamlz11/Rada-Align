@@ -64,6 +64,7 @@ def test_beacon_never_visible_faults_after_timeout():
     assert result.duration_s == pytest.approx(QUIET.controller.acquire_timeout_s, abs=1.0)
 
 
+@pytest.mark.xfail(strict=True, reason="superseded mutual-sighting design: its assumed noise (2 sigma ~0.03 deg) cannot meet the 0.005 deg requirement (Liam, 2026-11-17)")
 def test_track_corrects_drift():
     # Radar tripod settling at 0.12 deg/min: crosses the 0.03 deg drift threshold.
     result = run_single(

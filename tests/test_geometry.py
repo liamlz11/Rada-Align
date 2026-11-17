@@ -83,7 +83,7 @@ def test_range_error_sensitivity_depends_on_net_offset(distance_m, net_m, expect
 
 def test_config_loads_and_is_strict():
     cfg = load_config()
-    assert cfg.geometry.tolerance_deg == 0.05
+    assert cfg.geometry.tolerance_deg == 0.005  # R7 tightened by the team, 2026-11-17
     assert cfg.actuators.pan.step == pytest.approx(1.8 / 16 / 100)
     changed = cfg.replace_path("camera.centroid_noise_px", 0.0)
     assert changed.camera.centroid_noise_px == 0.0

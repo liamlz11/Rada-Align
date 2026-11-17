@@ -1,1 +1,1 @@
-"""Final design (docs/FINAL_DESIGN.md): Raster Scan + PSD + KLT simulator and demo."""
+"""Final design (docs/FINAL_DESIGN.md): Raster Scan + PSD + NanoTrack simulator and demo."""

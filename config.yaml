@@ -14,7 +14,7 @@ mode: sim  # sim | hw
 # manual setup error below is still our ASSUMPTION (OPEN_QUESTIONS Q19).
 geometry:
   distance_m: 12.0                # ASSUMPTION - replace with datasheet/measurement (challenge: 10-15 m)
-  tolerance_deg: 0.05              # REQUIREMENT R7
+  tolerance_deg: 0.005             # REQUIREMENT R7, tightened by the team (Liam, 2026-11-17); DRS value 0.05
   initial_pointing_error_deg: 1.0  # ASSUMPTION - replace with datasheet/measurement (manual setup, uniform +/- per axis, radar and horn)
   initial_roll_deg: 0.5            # ASSUMPTION - replace with datasheet/measurement (spirit-level setup, uniform +/-)
   # Pan/tilt pivot -> horn aperture center, horn body frame [right, forward, up]
@@ -100,12 +100,12 @@ estimator:
   settle_time_s: 0.5               # DESIGN: wait after motion before sampling
 
 controller:
-  deadband_deg: 0.01               # DESIGN: no fine correction below this
+  deadband_deg: 0.001              # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17): no fine correction below this
   gain: 1.0                        # DESIGN
   max_iterations: 30               # DESIGN: coarse corrections before FAULT
   max_verify_attempts: 6           # DESIGN: verify windows before FAULT
-  coarse_threshold_deg: 0.03       # DESIGN: coarse ALIGN corrects errors above this; VERIFY trims the rest
-  track_drift_threshold_deg: 0.03  # DESIGN (CHALLENGE.md operating flow, step 8): TRACK re-aligns when |mean| exceeds this
+  coarse_threshold_deg: 0.003      # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17): coarse ALIGN corrects errors above this; VERIFY trims the rest
+  track_drift_threshold_deg: 0.003 # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17) (CHALLENGE.md operating flow, step 8): TRACK re-aligns when |mean| exceeds this
   acquire_frames: 5                # DESIGN: consecutive valid frames on both cameras
   acquire_timeout_s: 60.0          # DESIGN
   lost_frames: 10                  # DESIGN: consecutive invalid frames before re-acquiring
@@ -197,7 +197,7 @@ psd:
     sigma_m: 0.05                      # ASSUMPTION - replace with datasheet/measurement
   control:
     roll_from_inclinometers: true      # DESIGN (2026-11-16, units below the axes): relative roll from the two inclinometers; PSD A/C solve Az/El only, PSD-C is the cross-check
-    deadband_deg: 0.01                 # DESIGN
+    deadband_deg: 0.001                # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17)
     kp: 1.0                            # DESIGN: ALIGN gain on the decoupled errors
     ki: 0.0                            # DESIGN
     track_kp: 0.5                      # DESIGN: TRACK horn gain
@@ -205,8 +205,8 @@ psd:
     align_window_s: 0.5                # DESIGN
     verify_window_s: 5.0               # DESIGN (CLAUDE.md: 5-10 s)
     track_window_s: 5.0                # DESIGN
-    track_threshold_deg: 0.03          # DESIGN (CHALLENGE.md operating flow step 8)
-    radar_alert_deg: 0.03              # DESIGN (FINAL_DESIGN C1)
+    track_threshold_deg: 0.003         # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17) (CHALLENGE.md operating flow step 8)
+    radar_alert_deg: 0.003             # DESIGN (x0.1 with the 0.005 deg requirement, Liam 2026-11-17) (FINAL_DESIGN C1)
     max_iterations: 20                 # DESIGN
     max_verify_attempts: 4             # DESIGN
     min_clean_fraction: 0.5            # DESIGN (2026-11-16): VERIFY also needs this share of samples free of an amplitude dip

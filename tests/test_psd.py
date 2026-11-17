@@ -224,17 +224,23 @@ def test_light_rain_run_holds_track_without_alerts_from_dips():
 
 
 def test_short_psd_a_edge_clips_are_summarised_not_logged_one_by_one():
-    # seed 5 at 12 m: the braked radar sways and the spot clips the PSD-A edge often in TRACK
-    w = World(CFG, 5, 12.0)
+    # Losses shorter than control.short_loss_s (in the field: the braked radar
+    # swaying the spot over the PSD-A edge) are counted and summarised, not logged
+    # one by one. Since the 0.005 deg requirement a full-noise run does not reach
+    # TRACK, so: demo profile to TRACK, then 30 short beam blocks (40 ms each).
+    from rada_align.psd.config import DEMO_SOURCES
+    w = World(quiet(CFG, DEMO_SOURCES), 5, 12.0)
     c = PsdController(w)
     c.start()
     while w.t < 120 and c.state not in ("TRACK", "FAULT"):
         c.tick(); w.step(c.dt)
     assert c.state == "TRACK"
     e0 = len(c.events)
-    end = w.t + 30
-    while w.t < end:
-        c.tick(); w.step(c.dt)
+    for _ in range(30):
+        w.block_beam(0.04)
+        end = w.t + 0.4
+        while w.t < end:
+            c.tick(); w.step(c.dt)
     new = [t for _, t in c.events[e0:]]
     short = [t for t in new if t.startswith("beam back after")
              and float(t.split()[3]) < CFG.control.short_loss_s]
