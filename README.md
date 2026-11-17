@@ -32,6 +32,8 @@ python -m pip install -e ".[dev]"
 python -m rada_align.psd
 ```
 
+On Windows you can instead double-click `run_demo.bat`: the first run creates `.venv` with the pinned versions from `requirements-lock.txt`, then it starts the demo and opens the browser.
+
 Open http://127.0.0.1:8001 and press "הדגמה מודרכת" (guided tour, Hebrew UI). Monte Carlo of the final design:
 
 ```bash
