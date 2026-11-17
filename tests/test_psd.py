@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import pytest
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 from rada_align.psd.config import load_psd_config, quiet
@@ -258,3 +259,45 @@ def test_demo_page_works_offline_with_bundled_files():
                      "/vendor/fonts/fonts.css", "/vendor/fonts/ibm-plex-sans-hebrew-hebrew-400-normal.woff2"):
             r = client.get(path)
             assert r.status_code == 200 and len(r.content) > 1000, path
+
+
+def test_radar_encoder_test_returns_to_the_recorded_counts():
+    # demo profile: reach TRACK, move the radar 0.5/0.3 deg (beam leaves PSD-A),
+    # drive back on the encoders; the horn must not move during the test
+    from rada_align.psd.config import DEMO_SOURCES
+    w = World(quiet(CFG, DEMO_SOURCES), 2, 12.0)
+    c = PsdController(w)
+    c.start()
+    while w.t < 120 and c.state not in ("TRACK", "FAULT"):
+        c.tick(); w.step(c.dt)
+    assert c.state == "TRACK"
+    for _ in range(int(6 / c.dt)):
+        c.tick(); w.step(c.dt)
+    horn0 = [w.servos[i].pos for i in (0, 1, 2)]
+    assert c.start_encoder_test(0.5, 0.3)
+    while w.t < 200 and c.enc_test["phase"] != "done":
+        c.tick(); w.step(c.dt)
+    T = c.enc_test
+    assert T["phase"] == "done"
+    assert [w.servos[i].pos for i in (0, 1, 2)] == horn0
+    assert abs(T["moved"][0] - 0.5) < 2e-3 and abs(T["moved"][1] - 0.3) < 2e-3
+    assert max(abs(a - b) for a, b in zip(T["true_after"], T["true_before"])) < 1e-3
+    assert all(s.braked for s in w.servos[3:6])
+
+
+def test_demo_page_script_parses():
+    """The page script must be valid JavaScript (a stray quote in a Hebrew string
+    once broke the whole page). Needs Node.js; skipped without it."""
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node not installed")
+    html = (Path(__file__).resolve().parents[1] / "rada_align/psd/static/demo.html").read_text(encoding="utf-8")
+    script = re.search(r'<script type="module">(.*?)</script>', html, re.S).group(1)
+    with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False, encoding="utf-8") as f:
+        f.write(script)
+    r = subprocess.run([node, "--check", f.name], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr

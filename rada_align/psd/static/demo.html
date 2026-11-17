@@ -243,6 +243,10 @@ td.num{text-align:end}
         <button class="btn" id="gap" aria-pressed="false">חלון תיקון למכ"ם</button>
         <button class="btn" id="field" aria-pressed="false">הפרעות שטח מלאות</button>
       </div>
+      <div class="ctlrow"><span class="ctl-label">בדיקת אנקודר למכ"ם: הזזה</span>
+        <input id="encAz" type="number" step="0.1" min="-2" max="2" value="0.5" style="width:4.5em" aria-label="אזימוט במעלות"> Az°
+        <input id="encEl" type="number" step="0.1" min="-2" max="2" value="0.3" style="width:4.5em" aria-label="גובה במעלות"> El°
+        <button class="btn" id="encTest">הזז והחזר</button></div>
       <div class="ctlrow"><span class="ctl-label">המכ"ם גבוה מהשופר ב-</span>
         <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button></div></div>
       <div class="ctlrow"><span class="ctl-label">גודל PSD-A/C</span>
@@ -304,6 +308,7 @@ $('knockr').onclick=()=>cmd('push','radar');
 $('blockS').onclick=()=>cmd('block',0.6);
 $('blockL').onclick=()=>cmd('block',3.0);
 $('gap').onclick=()=>cmd('gap', !(M&&M.radar_gap));
+$('encTest').onclick=()=>cmd('encoder_test', `${+$('encAz').value||0},${+$('encEl').value||0}`);
 $('field').onclick=()=>{hist=[];cmd('field_errors', !(M&&M.field_errors))};
 $('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
 $('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
@@ -547,6 +552,9 @@ const VIEWS = {
   top:     {p:[2.5,6.8,0.5], t:[2.5,1.1,0]},
   radar:   {p:[DS+1.7,2.0,0.6], t:[0,0.9,0]},
   horn:    {p:[1.25,1.15,1.15], t:[0.1,0.85,0]},
+  // close-ups used by the guided tour
+  radarUnit:{p:[DS-1.35,1.45,1.1], t:[DS,1.15,0]},
+  hornClose:{p:[0.85,0.95,0.7], t:[0.05,0.75,0]},
 };
 let tween = null;
 function setView(name){
@@ -677,7 +685,17 @@ function errText(m){
       + (wbs ? `<br>כולל אי-ודאות כיול (U<sub>bias</sub>, k=2): <span class="num ${w.reported.pass_with_bias?'ok':'no'}">${Math.max(...wbs).toFixed(4)}°</span> · U<sub>bias</sub> מכ"ם <span class="num">${ub[2].toFixed(3)}/${ub[3].toFixed(3)}°</span>, שופר <span class="num">${ub[0].toFixed(3)}/${ub[1].toFixed(3)}°</span>` : '');
   } else box.textContent='';
   $('facts').innerHTML = `הפרש גובה (R3, ממד הזווית): <span class="num">${m.dh_mm==null?'—':m.dh_mm.toFixed(0)} mm</span> · אמת <span class="num">${m.dh_true_mm.toFixed(0)} mm</span><br>`+
-    `כתם (99%): <span class="num">${(2*m.psd_geom.spot_r99_mm).toFixed(2)} mm</span> · תיקונים: <span class="num">${m.corrections}</span> · הצבה #<span class="num">${m.setup_id}</span>`;
+    `כתם (99%): <span class="num">${(2*m.psd_geom.spot_r99_mm).toFixed(2)} mm</span> · תיקונים: <span class="num">${m.corrections}</span> · הצבה #<span class="num">${m.setup_id}</span>` + encText(m);
+}
+// radar encoder return test (R9: repeatable after a move): result line under the errors
+function encText(m){
+  const T = m.enc_test; if (!T) return '';
+  const f4 = v => (v>=0?'+':'') + v.toFixed(4) + '°';
+  if (T.phase !== 'done'){
+    const ph = {out:'המכ"ם זז בזווית שנבחרה; האנקודרים מודדים את התזוזה', back:'חוזר לספירות האנקודר שנשמרו', measure:'ה-PSD מודדים את השגיאה אחרי החזרה'}[T.phase];
+    return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> ${ph}` + (T.moved ? ` · האנקודרים: <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span>` : '');
+  }
+  return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> הוזז <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span> והוחזר · שגיאת המכ"ם לפני <span class="num">${f4(T.before[0])}/${f4(T.before[1])}</span>, אחרי <span class="num">${f4(T.after[0])}/${f4(T.after[1])}</span> <span style="color:var(--truth)">(אמת אחרי ${f4(T.true_after[0])}/${f4(T.true_after[1])})</span>`;
 }
 function servos(m){
   const he={horn_pan:'שופר Pan',horn_tilt:'שופר Tilt',horn_roll:'שופר Roll',radar_pan:'מכ"ם Pan',radar_tilt:'מכ"ם Tilt',radar_roll:'מכ"ם Roll'};
@@ -748,47 +766,73 @@ async function say(id, title, text, step, seconds = READ_S){
   await hold(id, seconds);
   await cmd('pause', false);
 }
+// Guided tour in three parts. Every caption freezes the simulation (say/hold), and
+// in part 1 the server also freezes at every controller state change; each step
+// moves the camera to the place where that step happens.
+const STEP_VIEW = {CALIB:'overview', SETUP:'side', ACQUIRE:'radar', SCAN:'hornClose', ALIGN:'horn', VERIFY:'side', TRACK:'overview'};
+const STEP_TEXT = {
+  CALIB:'טוענים את קובץ הכיול (מיקום הלייזרים, מרכזי ה-PSD, האפס של העדשה), מודדים מרחק במד הטווח, ומעריכים את הפרש הגובה משני מדי הזווית.',
+  SETUP:'מנועי ה-Roll מפלסים את שני הצדדים לפי מדי הזווית, כדי שהלוח והיחידה יהיו מקבילים.',
+  ACQUIRE:'המצלמה שעל המכ"ם מוצאת את יחידת ה-PSD על השופר (template matching), עוקב ה-AI (NanoTrack) ננעל, והמכ"ם מסתובב גס לכיוונה.',
+  SCAN:'המכ"ם סורק בנחש קטן (±0.15°) עד ש-2 מתוך 3 הקרניים נוחתות שלמות על ה-PSD שלהן.',
+  ALIGN:'יישור עדין: המכ"ם מאפס את PSD-A, השופר מאפס את PSD-B, במקביל, עד שכל ציר בתוך 0.001°.',
+  VERIFY:'5 שניות בלי לגעת: |mean|+2σ צריך להיות מתחת ל-0.005° בכל אחד מ-4 הצירים.',
+  TRACK:'נוצר 0,0. מכאן המערכת שומרת עליו.'};
 async function tour(){
   const id = ++tourRun; $('tour').setAttribute('aria-pressed','true'); $('tour').textContent='עצור הדגמה';
-  const N = 8, S = i => `שלב ${i} מתוך ${N}`;
+  const P1 = i => `חלק 1 מתוך 3 · יצירת 0,0 · שלב ${i}`, P2 = i => `חלק 2 מתוך 3 · שמירה על 0,0 · שלב ${i}`, P3 = i => `חלק 3 מתוך 3 · בדיקת דיוק המכ"ם · שלב ${i}`;
   try{
     if (M && M.radar_gap) await cmd('gap', false);
     if (M && M.weather !== 'clear') await cmd('weather', 'clear');
     await cmd('speed', 1);
     hist=[]; await cmd('new_setup'); setView('overview');
-    await simWait(id, 0.3);
-    await say(id, 'הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', S(1), 8);
-    // step 2: the server freezes at every state change; explain it, then resume
+    await sleep(600);
+    // ---------------- part 1: create 0,0
+    await say(id, 'חלק 1: יצירת 0,0', 'מכוונים ביד את המכ"ם בערך לכיוון השופר, כך שהמצלמה שעליו תראה אותו, ואת השופר בערך לכיוון המכ"ם. אחר כך המצלמה והלייזרים עושים את היישור המדויק על ה-PSD.', P1(1), 9);
+    setView('radar');
+    await say(id, 'הצבה ידנית', 'שני הצדדים הוצבו ביד, בגבהים שונים: עד ±1° ו-±25 ס"מ שגיאה. שום נתון מהמכ"ם לא נקרא.', P1(2), 7);
     await cmd('pause_on_state', true); await cmd('start');
-    let last = '';
+    let last = '', n = 3;
     for (;;){
       if (tourRun!==id) throw 'aborted';
       if (M && M.paused && M.state !== last){
         last = M.state;
-        if (last==='SCAN') setView('top'); if (last==='ALIGN') setView('horn'); if (last==='VERIFY') setView('side'); if (last==='TRACK') setView('overview');
-        if (last==='FAULT'){ caption('תקלה', M.fault_reason, S(2)); await hold(id, READ_S); break }
-        if (PIPE.includes(last)) caption(`יישור אוטונומי · ${STATE_HE[last]}`, STATE_WHY[last], S(2));
-        await hold(id, READ_S); await cmd('pause', false);
+        if (last==='FAULT'){ caption('תקלה', M.fault_reason, P1(n)); await hold(id, READ_S); throw 'fault' }
+        if (STEP_VIEW[last]) setView(STEP_VIEW[last]);
+        caption(`${STATE_HE[last]} · ${last}`, STEP_TEXT[last] || STATE_WHY[last] || '', P1(n++));
+        await hold(id, READ_S + 1); await cmd('pause', false);
       }
       if (M && last==='TRACK' && !M.paused) break;
       await sleep(100);
     }
     await cmd('pause_on_state', false);
-    if (M && M.state==='FAULT') throw 'fault';
     await until(id, settled, 30);
-    await say(id, 'מיושר', 'המערכת במעקב: השופר מתקן ברציפות, המכ"ם בבלם ומנוטר.', S(3));
+    setView('horn');
+    await say(id, '0,0 נוצר', 'שלושת הכתמים על הצלבים. המספרים ב"שגיאות" מתחת ל-0.005°, והאמת (בתכלת) מאשרת.', P1(n), 8);
+    // ---------------- part 2: keep 0,0
+    setView('overview');
+    await say(id, 'חלק 2: שמירה על 0,0', 'הלייזרים כבר על ה-PSD. המנועים מקשיבים לאותות מה-PSD ומתקנים כל שנייה: את השופר לפי PSD-B, ואת המכ"ם לפי PSD-A כשחלון התיקון פתוח.', P2(1), 9);
+    await cmd('gap', true);
     await simWait(id, 4);
-    await say(id, 'מכה בחצובת השופר', 'עכשיו נזיז את השופר. PSD-B יראה את השינוי, והשופר לבד יחזור לאפס.', S(4));
+    setView('horn');
+    await say(id, 'מכה בחצובת השופר', 'נזיז את השופר ב-0.08°. PSD-B רואה את השינוי, והמנועים של השופר מחזירים אותו לאפס.', P2(2));
     await cmd('push','horn'); await simWait(id, 1); await until(id, settled, 30); await simWait(id, 3);
-    await say(id, 'חסימה קצרה של הקרן', 'עכשיו מישהו עובר בקו. עוקב ה-AI במצלמה (NanoTrack) מגשר עד שהקרן חוזרת, בלי סריקה מחדש.', S(5));
-    await cmd('block',0.6); await simWait(id, 1); await until(id, settled, 20); await simWait(id, 3);
-    await say(id, 'גשם קל', 'בסימולציה: כשטיפה פוגעת בחלון היא מעמעמת PSD אחד; הדגימה נפסלת והמעקב ממשיך.', S(6));
-    await cmd('weather','rain_light'); await simWait(id, 25); await cmd('weather','clear'); await simWait(id, 2);
-    await say(id, 'מכה בחצובת המכ"ם', 'עכשיו נזיז את המכ"ם. הוא בבלם במהלך הניסוי: המערכת מתריעה ולא מזיזה אותו.', S(7));
-    await cmd('push','radar'); await simWait(id, 5);
-    await say(id, 'חלון תיקון למכ"ם', 'הצוות פותח חלון מותר: המכ"ם מתוקן (raster + ALIGN) וחוזרים למעקב.', S(8));
-    await cmd('gap', true); await simWait(id, 1); await until(id, settled, 60); await cmd('gap', false);
-    await simWait(id, 3);
+    await say(id, 'השופר חזר', 'הכתם של B חזר לצלב, ובמספרים השופר שוב מתחת ל-0.005°.', P2(3), 6);
+    setView('radarUnit');
+    await say(id, 'תזוזה קטנה של המכ"ם', 'נזיז את המכ"ם ב-0.02°. הכתם זז על PSD-A (4 מ"מ ב-12 מטר), והמנועים של המכ"ם מחזירים אותו.', P2(4));
+    await cmd('push','radar/0.02'); await simWait(id, 1); setView('horn'); await until(id, settled, 40); await simWait(id, 3);
+    await say(id, 'המכ"ם חזר', 'שני הצדדים שוב ב-0,0. בניסוי אמיתי המכ"ם נעול בבלם ומתוקן רק בחלון מותר; כאן החלון פתוח לכל החלק הזה.', P2(5), 8);
+    await cmd('gap', false); await simWait(id, 2);
+    // ---------------- part 3: radar accuracy test with the encoders
+    const az = +$('encAz').value || 0.5, el = +$('encEl').value || 0.3;
+    setView('radarUnit');
+    await say(id, 'חלק 3: בדיקת דיוק המכ"ם', `נזיז את המכ"ם במנועים ב-${az}° אזימוט ו-${el}° גובה. האנקודרים על המנועים מודדים את התזוזה ויודעים להחזיר אותו בדיוק למקום. השופר לא זז.`, P3(1), 9);
+    await cmd('encoder_test', `${az},${el}`);
+    await until(id, m => m.enc_test && m.enc_test.moved, 10);
+    setView('horn');
+    await say(id, 'המכ"ם הוזז', 'הקרן יצאה מ-PSD-A (אין אות). האנקודרים מראים בדיוק כמה המכ"ם זז; לפיהם הוא יחזור, בלי עזרת ה-PSD.', P3(2), 8);
+    await until(id, m => m.enc_test && m.enc_test.phase==='done', 20);
+    await say(id, 'המכ"ם חזר לפי האנקודרים', 'ה-PSD מודדים את התוצאה: שגיאת המכ"ם לפני ואחרי מופיעה ב"שגיאות", מתחת לגובה (R3). ההפרש הוא ברזולוציית האנקודר (0.001°).', P3(3), 10);
     caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
     await hold(id, 8);
   } catch(e){ if (e!=='aborted' && e!=='fault') console.error(e) }

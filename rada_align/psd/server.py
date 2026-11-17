@@ -47,6 +47,8 @@ def create_app(session: PsdSession, autostart: bool = True) -> FastAPI:
             return session.command(cmd.name, cmd.value)
         except KeyError:
             raise HTTPException(400, f"unknown command {cmd.name!r}")
+        except ValueError as e:
+            raise HTTPException(409, str(e))
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket):

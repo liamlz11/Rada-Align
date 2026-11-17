@@ -99,8 +99,10 @@ class PsdSession:
                 self.wind_scale = float(np.clip(float(value), 0.0, 5.0))
                 w.wind_scale = self.wind_scale
             elif name == "push":
-                w.push_side(str(value), 0.08)
-                c._log(f"disturbance: {value} tripod knocked by 0.08 deg")
+                side, _, size = str(value).partition("/")  # "horn", "radar" or "radar/0.02"
+                deg = float(size) if size else 0.08
+                w.push_side(side, deg)
+                c._log(f"disturbance: {side} tripod knocked by {deg:.3f} deg")
             elif name == "block":
                 w.block_beam(float(value or 0.6))
                 c._log(f"disturbance: beam blocked for {float(value or 0.6):.1f} s")
@@ -110,6 +112,10 @@ class PsdSession:
             elif name == "field_errors":
                 self.field_errors = bool(value)
                 self._build()
+            elif name == "encoder_test":
+                az, el = (float(v) for v in str(value).split(","))
+                if not c.start_encoder_test(float(np.clip(az, -2, 2)), float(np.clip(el, -2, 2))):
+                    raise ValueError("encoder test needs TRACK")
             elif name == "pause":
                 self.paused = bool(value)
             elif name == "pause_on_state":
@@ -221,6 +227,7 @@ class PsdSession:
             "rain_mm_h": w.rain_mm_h,
             "alerts": list(c.alerts),
             "corrections": c.corrections,
+            "enc_test": None if c.enc_test is None else {k: v for k, v in c.enc_test.items() if k != "buf"},
             "psd": {
                 k: {"x": _f(psd[k].x_mm, 4), "y": _f(psd[k].y_mm, 4), "valid": psd[k].valid,
                     "detect": psd[k].detect, "power": _f(psd[k].power, 3), "dip": psd[k].dip,
