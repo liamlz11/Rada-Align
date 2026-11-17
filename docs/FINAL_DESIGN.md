@@ -613,6 +613,68 @@ L = 200 mm and t = 10 mm (ASSUMPTION).
   - Use a power-off holding brake on the 3 radar axes, needed for the "locked
     during the test" policy (C1).
 
+#### 7.5.1 Motor resolution validation for 0.005° (2026-11-17) [datasheet + sim]
+
+Question (Liam): can the motors really move in steps this fine?
+
+- **Reference stage, Newport RV rotation stages [datasheet, rev 10/13]:**
+
+  | Version | Min. incremental motion | Uni-dir. repeatability | Bi-dir. repeatability | Accuracy |
+  |---|---|---|---|---|
+  | RV standard | 0.001° | 0.002° | 0.004° | ±0.005° |
+  | RV HAHLT (direct platen encoder, "better than 0.0001°") | 0.0002° | 0.0002° | 0.0012° | ±0.0025° |
+
+  Datasheet values are guaranteed; typical values are about 2× better [datasheet].
+  For contrast, a FLIR PTU-D300E pan-tilt has 0.0064° resolution [datasheet].
+- **Servo model in the simulator (config.yaml `psd.servos`, values from the RV HAHLT row):**
+  encoder 0.0001°, minimum step 0.0002° (moves fall on that grid), repeatability
+  0.0002° p-p (uniform), lost motion on a direction change uniform(0, 0.001°)
+  (bi-dir. minus uni-dir.), encoder on the output side, so it sees the lost motion.
+- **Monte Carlo, demo profile, same seeds** (reported / TRUE / false accepts; incl. U_bias at 12 m):
+
+  | Actuator model | 12 m, 200 runs | 2 m, 100 runs |
+  |---|---|---|
+  | ideal (no step, no play) | 100 / 100 / 0 % (96.0 %) | 100 / 98 / 2 % |
+  | RV HAHLT | 100 / 100 / 0 % (93.0 %) | 100 / 99 / 1 % |
+  | RV standard | 100 / 100 / 0 % (96.0 %) | 100 / 99 / 1 % |
+  | 0.0064° step (FLIR PTU-D300E class) | 2 / 2 / 0 % (196 "no convergence in ALIGN") | 0 % (100 "no convergence in ALIGN") |
+
+  Dominant cause for the PTU: one step (0.0064°) is wider than the whole
+  tolerance (0.005°), so ALIGN cannot settle inside its 0.001° deadband.
+- **Step test (controller.start_step_test, demo button "5 steps out and back"):**
+  TRACK only, every loop idle; the axis gets n commanded steps out and n back; after
+  each step the raw reading of one PSD (A for the radar, B for the horn; pan → x,
+  tilt → y) divided by its sensitivity is averaged (0.5 s radar, 2 s horn). The PSD,
+  not the encoder, is the judge. The first step after the reversal is reported apart
+  (lost motion). Results, RV HAHLT model, seed 2:
+
+  | Distance, axis | Step | PSD forward / back | Every step seen | PSD vs truth per step |
+  |---|---|---|---|---|
+  | 12 m, radar pan/tilt | 0.001° | 0.00096 / 0.00104° (sd 0.00008°) | yes | < 0.00001° |
+  | 12 m, radar | 0.0005° | | yes | |
+  | 12 m, radar | 0.0002° | forward 0.00015° | no (at the MIM and repeatability limit) | |
+  | 12 m, horn | 0.001° | | yes | ≤ 0.0004° |
+  | 2 m, radar pan | 0.001° / 0.0002° | | yes / yes | |
+  | 2 m, radar tilt | 0.001° | forward 0.00085° (sd 0.00037°) | no | |
+
+  Browser run (12 m, radar pan, 0.001°): forward 0.00104°, back 0.00096°, sd
+  0.00005°, end point 0.0014° from the start (the lost motion on the reversal).
+- **Conclusion [sim]:** a stage of the RV class (0.001° or finer minimum step)
+  resolves the 0.005° requirement with margin of 5× (standard) to 25× (HAHLT); a
+  pan-tilt with 0.0064° steps cannot. The simulation only shows that the loop works
+  with these datasheet figures; it does not prove the stage meets them.
+- **Caveats:**
+  - Torque: RV240/350 HAHLT max torque 10 N·m [datasheet] against 10-34 N·m static
+    for the 35 kg radar with the centre of gravity 3-10 cm off the axis (7.5): the
+    radar must be balanced, or a larger stage or a counterweight is needed.
+  - Load: centred load 4000/6500 N and max inertia 10 kg·m² [datasheet] are fine
+    for the radar (about 350 N, about 1 kg·m², ASSUMPTION).
+- **Bench protocol (before the field, ISO 230-2 style):** on the real stage, PSD-A
+  at 12 m as the judge: 5 steps of 0.001° out and back, 5 cycles per axis, record
+  forward and back mean, sd, the first step after the reversal and the end-point
+  error; repeat at 0.0005° and 0.0002°. Pass if every 0.001° step is seen and the
+  bi-directional end-point error is under 0.0012° (HAHLT) [proposal].
+
 ### 7.6 PSD noise, ADC, modulation, power (check 6)
 
 **PSD resolution** [datasheet: 1.5 µm at Io = 1 µA, B = 1 kHz]:

@@ -57,6 +57,9 @@ class ServosCfg:
     travel_deg: float
     max_speed_deg_s: float
     encoder_deg: float
+    min_step_deg: float
+    repeat_deg: float
+    reversal_deg: float
 
 
 @dataclass(frozen=True)
@@ -163,6 +166,7 @@ ERROR_SOURCES: dict[str, tuple[str, ...]] = {
     "inclinometer": ("inclinometer.noise_deg", "inclinometer.bias_sigma_deg"),
     "rangefinder": ("rangefinder.sigma_m",),
     "camera": ("camera.acquire_sigma_deg",),
+    "servo": ("servos.min_step_deg", "servos.repeat_deg", "servos.reversal_deg"),
 }
 
 
@@ -172,7 +176,7 @@ ERROR_SOURCES: dict[str, tuple[str, ...]] = {
 # convergence in ALIGN); calib alone -> TRUE 0 %; laser alone -> TRUE 20 %;
 # drift alone passes, but the braked radar then drifts past 0.005 deg within a
 # minute of TRACK. The full set stays the default for the Monte Carlo.
-DEMO_SOURCES: tuple[str, ...] = ("psd_noise", "inclinometer", "rangefinder", "camera")
+DEMO_SOURCES: tuple[str, ...] = ("psd_noise", "inclinometer", "rangefinder", "camera", "servo")
 
 
 def quiet(cfg: PsdConfig, keep: tuple[str, ...] = ()) -> PsdConfig:

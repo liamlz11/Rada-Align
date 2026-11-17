@@ -12,7 +12,7 @@ from collections import deque
 import numpy as np
 
 from .config import TOLERANCE_DEG, PsdConfig
-from .estimator import PsdEstimator, readings_vector, window_score
+from .estimator import ROWS, PsdEstimator, readings_vector, window_score
 from .model import Geometry, SERVO_NAMES
 from .world import World
 
@@ -50,6 +50,7 @@ class PsdController:
         self.klt_bridge = False
         self.edge_clips = 0  # short PSD-A losses in TRACK (log summary only)
         self.enc_test: dict | None = None  # radar encoder return test (TRACK only)
+        self.step_test: dict | None = None  # motor step validation, the PSDs as the judge (TRACK only)
         self._clip_t0: float | None = None
         self.scan_path: list[tuple[float, float]] = []
         self.scan_info: dict = {}
@@ -134,6 +135,7 @@ class PsdController:
         self.window = None
         self.klt_bridge = False
         self.enc_test = None
+        self.step_test = None
         for i in RADAR:
             self.w.servos[i].braked = False
         self._goto("CALIB")
@@ -197,6 +199,84 @@ class PsdController:
                 self._track_true.clear()
                 self._track_ok.clear()
             return
+
+    # ---------------------------------------------------------- step test
+    STEP_AXES = {("radar", "pan"): (3, 2), ("radar", "tilt"): (4, 3), ("horn", "pan"): (0, 0), ("horn", "tilt"): (1, 1)}
+
+    def start_step_test(self, side: str, axis: str, step_deg: float, n: int = 5) -> bool:
+        """Motor resolution check (TRACK only): command n steps of step_deg forward and
+        n back on one axis while every loop is idle; after each step average the raw
+        reading of one PSD (0.5 s for the radar on PSD-A, 2 s for the horn on PSD-B).
+        The PSDs, not the encoder, say how far the axis really moved."""
+        if self.state != "TRACK" or (self.step_test and self.step_test["phase"] != "done") \
+                or (self.enc_test and self.enc_test["phase"] != "done"):
+            return False
+        srv, err = self.STEP_AXES[(side, axis)]
+        n = int(max(1, min(n, 20)))
+        plan = [step_deg] * n + [-step_deg] * n
+        self.step_test = {"phase": "settle", "side": side, "axis": axis, "step": float(step_deg), "n": n,
+                          "srv": srv, "err": err, "plan": plan, "k": 0, "t": 0.0, "buf": [], "tbuf": [],
+                          "psd": [], "enc": [], "true": [], "was_braked": self.w.servos[srv].braked}
+        self.w.servos[srv].braked = False
+        self._log(f"STEP TEST: {side} {axis}, {n} steps of {step_deg:+.4f} deg and back; loops idle, PSDs judge")
+        return True
+
+    def _run_step_test(self, psd) -> None:
+        T = self.step_test
+        s = self.w.servos[T["srv"]]
+        T["t"] += self.dt
+        if T["phase"] == "settle":
+            if not s.moving and T["t"] >= self.c.settle_s:
+                T["phase"], T["t"], T["buf"], T["tbuf"] = "measure", 0.0, [], []
+            return
+        if T["phase"] == "measure":
+            # the judge is the raw reading of one PSD (A for the radar, B for the horn),
+            # pan -> x, tilt -> y, divided by its sensitivity to that error
+            k = "A" if T["side"] == "radar" else "B"
+            if psd[k].valid:
+                row = ROWS[k][0 if T["axis"] == "pan" else 1]
+                T["buf"].append(readings_vector(psd)[row] / self.est_model.G[row, T["err"]])
+            T["tbuf"].append(self.w.true_errors()[T["err"]])
+            # PSD-A reads the radar at d*pi/180 mm/deg; the horn is read through PSD-B
+            # at f*pi/180 (0.87 mm/deg), so it needs a longer average for the same noise
+            if T["t"] < (0.5 if T["side"] == "radar" else 2.0):
+                return
+            T["psd"].append(float(np.mean(T["buf"])) if T["buf"] else float("nan"))
+            T["true"].append(float(np.mean(T["tbuf"])))
+            T["enc"].append(float(s.encoder))
+            if T["k"] >= len(T["plan"]):
+                self._finish_step_test()
+                return
+            s.command(s.encoder + T["plan"][T["k"]])
+            T["k"] += 1
+            T["phase"], T["t"] = "settle", 0.0
+
+    def _finish_step_test(self) -> None:
+        T = self.step_test
+        sgn = -1.0  # a positive pan/tilt step lowers the error of that side
+        pos = sgn * np.array(T["psd"])
+        d = np.diff(pos)
+        n = T["n"]
+        # the first step back follows a reversal: lost motion shows there, reported apart
+        fwd, back = d[:n], -d[n + 1:]
+        T["reversal_step"] = float(-d[n])
+        T["psd_steps"] = [float(v) for v in d]
+        T["enc_steps"] = [float(v) for v in np.diff(T["enc"])]
+        T["true_steps"] = [float(v) for v in sgn * np.diff(T["true"])]
+        T["mean_fwd"], T["mean_back"] = float(np.mean(fwd)), float(np.mean(back))
+        both = np.concatenate([fwd, back])
+        T["sd"] = float(np.std(both, ddof=1)) if len(both) > 1 else 0.0
+        T["return_error"] = float(pos[-1] - pos[0])  # where it ends vs where it started (reversal + repeatability)
+        T["resolved"] = bool(np.all(np.concatenate([fwd, back]) > 0.5 * T["step"])) if len(back) else bool(np.all(fwd > 0.5 * T["step"]))
+        T["phase"] = "done"
+        self.w.servos[T["srv"]].braked = T["was_braked"]
+        self._log("STEP TEST: commanded {:.4f} deg; PSD measured forward {:.5f}, back {:.5f} deg, sd {:.5f}; "
+                  "first step after reversal {:.5f}; return error {:+.5f} deg; every step seen: {}".format(
+                      T["step"], T["mean_fwd"], T["mean_back"], T["sd"], T["reversal_step"], T["return_error"],
+                      "yes" if T["resolved"] else "NO"))
+        self._track_est.clear()
+        self._track_true.clear()
+        self._track_ok.clear()
 
     def stop(self) -> None:
         for s in self.w.servos:
@@ -460,6 +540,9 @@ class PsdController:
         if self.enc_test is not None and self.enc_test["phase"] != "done":
             self._run_encoder_test(psd)  # horn and radar loops idle while the radar is under test
             return
+        if self.step_test is not None and self.step_test["phase"] != "done":
+            self._run_step_test(psd)  # every loop idle: the PSDs only watch the commanded steps
+            return
         if not psd["A"].detect:
             self._lost_t += self.dt
             self.klt_bridge = True
@@ -581,6 +664,8 @@ class PsdController:
     @property
     def aligned(self) -> bool:
         if self.enc_test is not None and self.enc_test["phase"] != "done":
+            return False
+        if self.step_test is not None and self.step_test["phase"] != "done":
             return False
         if self.state != "TRACK" or self.klt_bridge:
             return False

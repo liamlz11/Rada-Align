@@ -19,27 +19,59 @@ from .model import DEG, PSDS, SERVO_NAMES, Biases, Geometry, unit_sigmas_deg
 
 
 class Servo:
-    """Position servo with an optical encoder, rate limit, travel limit and brake."""
+    """Position servo with an output-side optical encoder, rate limit, travel limit
+    and brake. Non-ideal motion (config psd.servos, zero = ideal):
+      min_step_deg  minimum incremental motion: the stage moves in steps of this size
+      repeat_deg    uni-directional repeatability, peak to peak (uniform settle error)
+      reversal_deg  lost motion on a reversal of direction (output falls short by
+                    up to this much; the output encoder sees it, so the loops can
+                    correct it with a further step)."""
 
-    def __init__(self, name: str, cfg: PsdConfig):
+    def __init__(self, name: str, cfg: PsdConfig, rng: np.random.Generator | None = None):
+        sc = cfg.servos
         self.name = name
-        self.travel = cfg.servos.travel_deg
-        self.speed = cfg.servos.max_speed_deg_s
-        self.enc = cfg.servos.encoder_deg
+        self.travel = sc.travel_deg
+        self.speed = sc.max_speed_deg_s
+        self.enc = sc.encoder_deg
+        self.mim, self.repeat, self.reversal = sc.min_step_deg, sc.repeat_deg, sc.reversal_deg
+        self.rng = rng if rng is not None else np.random.default_rng(0)
         self.pos = 0.0  # deg, mechanism
-        self.target = 0.0
+        self._target = 0.0  # commanded
+        self.goal = 0.0  # where the mechanism will actually stop
+        self._dir = 0
         self.braked = False
+
+    @property
+    def target(self) -> float:
+        return self._target
+
+    @target.setter
+    def target(self, value: float) -> None:  # "stop here": no new motion, no settle error
+        self._target = self.goal = float(value)
 
     def command(self, target_deg: float) -> bool:
         if self.braked:
             return False
-        self.target = float(np.clip(target_deg, -self.travel, self.travel))
+        self._target = float(np.clip(target_deg, -self.travel, self.travel))
+        goal = self._target
+        if self.mim > 0:  # the stage can only land on its own step grid
+            goal = self.pos + round((goal - self.pos) / self.mim) * self.mim
+        if abs(goal - self.pos) < 1e-12:
+            self.goal = self.pos
+            return True
+        d = 1 if goal > self.pos else -1
+        if self.repeat > 0:
+            goal += self.rng.uniform(-0.5, 0.5) * self.repeat
+        if self.reversal > 0 and self._dir and d != self._dir:
+            goal -= d * self.rng.uniform(0.0, self.reversal)
+        self._dir = d
+        self.goal = float(np.clip(goal, -self.travel, self.travel))
         return True
 
     def step(self, dt: float) -> None:
         if self.braked:
             return
-        delta = self.target - self.pos
+        delta = self.goal - self.pos
         lim = self.speed * dt
         self.pos += float(np.clip(delta, -lim, lim))
 
@@ -49,7 +81,7 @@ class Servo:
 
     @property
     def moving(self) -> bool:
-        return abs(self.target - self.pos) > 1e-9
+        return abs(self.goal - self.pos) > 1e-9
 
     @property
     def at_limit(self) -> bool:
@@ -85,7 +117,8 @@ class World:
         self.geo = Geometry(cfg, distance_m, height_m)
         self.t = 0.0
         self.calibration_loaded = calibration_loaded
-        self.servos = [Servo(n, cfg) for n in SERVO_NAMES]
+        srng = np.random.default_rng(seed + 20011)  # own stream: ideal servos leave the rest unchanged
+        self.servos = [Servo(n, cfg, srng) for n in SERVO_NAMES]
         self.ac_size_mm = cfg.sensor.ac_size_mm
         self.wind_scale = 1.0
         self.blocked_until = -1.0

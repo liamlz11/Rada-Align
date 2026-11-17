@@ -163,7 +163,10 @@ psd:
   servos:
     travel_deg: 5.0                    # DESIGN (FINAL_DESIGN section 2): +/- on every axis
     max_speed_deg_s: 2.0               # ASSUMPTION - replace with datasheet/measurement
-    encoder_deg: 0.001                 # DESIGN (FINAL_DESIGN 7.5): output resolution per count
+    encoder_deg: 0.0001                # [datasheet] candidate class Newport RV240/350 HAHLT: direct-reading platen encoder, "better than 0.0001 deg" (was DESIGN 0.001)
+    min_step_deg: 0.0002               # [datasheet] RV HAHLT minimum incremental motion 0.0002 deg (standard RV with worm encoder: 0.001)
+    repeat_deg: 0.0002                 # [datasheet] RV HAHLT uni-directional repeatability, guaranteed, peak to peak
+    reversal_deg: 0.001                # [datasheet] RV HAHLT bi-directional repeatability 0.0012 p-p minus uni-directional 0.0002
   wind:
     jitter_deg: 0.0106                 # ASSUMPTION - replace with datasheet/measurement (per head, per axis, fast part)
     jitter_tau_s: 0.05                 # ASSUMPTION - replace with datasheet/measurement

@@ -116,6 +116,13 @@ class PsdSession:
                 az, el = (float(v) for v in str(value).split(","))
                 if not c.start_encoder_test(float(np.clip(az, -2, 2)), float(np.clip(el, -2, 2))):
                     raise ValueError("encoder test needs TRACK")
+            elif name == "step_test":
+                side, axis, step, n = str(value).split(",")
+                if (side, axis) not in c.STEP_AXES:
+                    raise ValueError("step test: side radar|horn, axis pan|tilt")
+                step = float(np.clip(float(step), -0.05, 0.05))
+                if step == 0 or not c.start_step_test(side, axis, step, int(n)):
+                    raise ValueError("step test needs TRACK and a non-zero step")
             elif name == "pause":
                 self.paused = bool(value)
             elif name == "pause_on_state":
@@ -228,6 +235,8 @@ class PsdSession:
             "alerts": list(c.alerts),
             "corrections": c.corrections,
             "enc_test": None if c.enc_test is None else {k: v for k, v in c.enc_test.items() if k != "buf"},
+            "step_test": None if c.step_test is None else {
+                k: v for k, v in c.step_test.items() if k not in ("buf", "tbuf", "plan", "was_braked")},
             "psd": {
                 k: {"x": _f(psd[k].x_mm, 4), "y": _f(psd[k].y_mm, 4), "valid": psd[k].valid,
                     "detect": psd[k].detect, "power": _f(psd[k].power, 3), "dip": psd[k].dip,

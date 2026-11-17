@@ -285,6 +285,30 @@ def test_radar_encoder_test_returns_to_the_recorded_counts():
     assert all(s.braked for s in w.servos[3:6])
 
 
+def test_radar_step_test_resolves_a_millidegree_step():
+    # motor validation, demo profile at 12 m, RV HAHLT servo model: 5 steps of
+    # 0.001 deg out and back on the radar pan; PSD-A must see every step
+    from rada_align.psd.config import DEMO_SOURCES
+    w = World(quiet(CFG, DEMO_SOURCES), 2, 12.0)
+    c = PsdController(w)
+    c.start()
+    while w.t < 120 and c.state not in ("TRACK", "FAULT"):
+        c.tick(); w.step(c.dt)
+    assert c.state == "TRACK"
+    for _ in range(int(6 / c.dt)):
+        c.tick(); w.step(c.dt)
+    assert c.start_step_test("radar", "pan", 0.001, 5)
+    while w.t < 220 and c.step_test["phase"] != "done":
+        c.tick(); w.step(c.dt)
+    T = c.step_test
+    assert T["phase"] == "done"
+    assert T["resolved"]
+    assert abs(T["mean_fwd"] - 0.001) < 2e-4 and abs(T["mean_back"] - 0.001) < 2e-4
+    # the PSD judge agrees with the truth step by step
+    assert max(abs(a - b) for a, b in zip(T["psd_steps"], T["true_steps"])) < 1e-4
+    assert w.servos[3].braked
+
+
 def test_demo_page_script_parses():
     """The page script must be valid JavaScript (a stray quote in a Hebrew string
     once broke the whole page). Needs Node.js; skipped without it."""

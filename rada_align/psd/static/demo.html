@@ -27,9 +27,10 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--field);color:var(--ink);
-  font-family:"IBM Plex Sans Hebrew",system-ui,sans-serif;font-size:15px;line-height:1.45}
+  font-family:"IBM Plex Sans Hebrew",system-ui,sans-serif;font-size:16px;line-height:1.45}
 .num,.ltr{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 button,select,input{font:inherit;color:inherit}
+input[type=number],select{background:var(--panel-2);border:1px solid var(--rule);border-radius:6px;padding:2px 6px}
 :focus-visible{outline:2px solid var(--survey);outline-offset:2px}
 
 header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 22px;border-bottom:1px solid var(--rule)}
@@ -48,7 +49,7 @@ header .spacer{flex:1}
   border:1px solid var(--rule);border-radius:999px;padding:3px 14px;font-size:.8rem;color:var(--truth);display:none}
 
 main{padding:16px 22px 28px;display:grid;gap:16px;
-  grid-template-columns:minmax(0,1fr) 360px}
+  grid-template-columns:minmax(0,1fr) 470px}
 @media (max-width:1100px){main{grid-template-columns:1fr}}
 
 .stage{position:relative;border-radius:var(--r-lg);overflow:hidden;background:#0f1922;min-height:520px;border:1px solid var(--rule)}
@@ -80,14 +81,14 @@ main{padding:16px 22px 28px;display:grid;gap:16px;
 .caption .step{color:var(--ink-3);font-size:.75rem;margin-top:4px}
 .btn.tour{background:transparent;border-color:var(--survey);color:var(--survey);font-weight:500}
 .btn.tour[aria-pressed="true"]{background:var(--survey);color:#1b1608}
-.ba{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 12px;align-items:center;font-size:.86rem}
+.ba{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 12px;align-items:center;font-size:.95rem}
 .ba .h{color:var(--ink-3);font-size:.78rem}
 .ba .cell{display:flex;flex-direction:column;gap:3px}
 .ba .bar{height:6px;border-radius:3px;background:var(--panel-2);position:relative;overflow:hidden}
 .ba .bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:3px}
 .ba .bar::after{content:"";position:absolute;inset-block:-2px;inset-inline-start:var(--tol);width:1px;background:var(--survey)}
 .ba .t{color:var(--truth);font-size:.78rem}
-.ba-sum{margin-top:10px;font-size:.86rem;color:var(--ink-2)}
+.ba-sum{margin-top:10px;font-size:.95rem;color:var(--ink-2)}
 .ba-sum b{color:var(--survey)} .ba-sum b.no{color:var(--signal)}
 
 .pipeline{position:absolute;inset-inline:0;bottom:0;display:flex;gap:2px;padding:10px 12px;
@@ -102,11 +103,12 @@ main{padding:16px 22px 28px;display:grid;gap:16px;
 
 aside{display:flex;flex-direction:column;gap:10px}
 .psd{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);padding:10px 12px;display:grid;
-  grid-template-columns:132px 1fr;gap:12px;align-items:center}
-.psd canvas{width:132px;height:132px;display:block}
-.psd h3{margin:0;font-size:1rem;font-weight:500}
-.psd p{margin:2px 0;color:var(--ink-2);font-size:.82rem}
-.psd .read{font-size:1.05rem;margin-top:6px}
+  grid-template-columns:210px 1fr;gap:14px;align-items:center}
+.psd canvas{width:210px;height:210px;display:block}
+.psd h3{margin:0;font-size:1.15rem;font-weight:500}
+.psd p{margin:2px 0;color:var(--ink-2);font-size:.9rem}
+.psd .read{font-size:1.3rem;margin-top:6px}
+.psd .zoom{color:var(--ink-3);font-size:.82rem}
 .pill{display:inline-block;border-radius:999px;padding:0 8px;font-size:.75rem;border:1px solid var(--rule);color:var(--ink-3)}
 .pill.on{border-color:var(--ir);color:var(--ir)}
 .pill.valid{border-color:var(--ok);color:var(--ok)}
@@ -114,18 +116,33 @@ aside{display:flex;flex-direction:column;gap:10px}
 .row{display:grid;gap:16px;grid-column:1/-1;grid-template-columns:1.1fr 1.3fr 1fr}
 @media (max-width:1100px){.row{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-lg);padding:14px 16px}
-.card h2{margin:0 0 10px;font-size:1.02rem;font-weight:500}
+.card h2{margin:0 0 10px;font-size:1.15rem;font-weight:500}
 .card h2 small{color:var(--ink-3);font-weight:400;margin-inline-start:6px}
 .errs{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 14px;align-items:baseline}
-.errs .h{color:var(--ink-3);font-size:.8rem}
-.errs .v{font-size:1.5rem;font-weight:500}
-.errs .t{color:var(--truth);font-size:.85rem}
+.errs .h{color:var(--ink-3);font-size:.9rem}
+.errs .v{font-size:2rem;font-weight:500}
+.errs .t{color:var(--truth);font-size:.95rem}
 .v.bad{color:var(--signal)} .v.good{color:var(--ink)}
-.score{margin-top:10px;color:var(--ink-2);font-size:.86rem}
+.score{margin-top:10px;color:var(--ink-2);font-size:.95rem}
 .score .ok{color:var(--survey)} .score .no{color:var(--signal)}
 canvas.plot{width:100%;display:block}
-#bull{height:260px} #chart{height:230px} #raster{height:200px}
-.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink-3);font-size:.78rem;margin-top:6px}
+/* guided tour: full screen, only the simulation stage, centred */
+.tourExit{display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(18,28,38,.85);
+  border:1px solid var(--rule);border-radius:var(--r-sm);padding:6px 14px;cursor:pointer;color:var(--ink)}
+body.tour-mode{overflow:hidden}
+body.tour-mode header, body.tour-mode aside, body.tour-mode .row{display:none}
+body.tour-mode main{grid-template-columns:1fr;padding:0;height:100vh}
+body.tour-mode .stage{min-height:0;height:100vh;border-radius:0;border:0}
+body.tour-mode .tourExit{display:block}
+body.tour-mode .caption{inset-inline:10%;bottom:130px;padding:18px 26px}
+body.tour-mode .caption b{font-size:1.7rem}
+body.tour-mode .caption span{font-size:1.3rem;line-height:1.5}
+body.tour-mode .caption .step{font-size:1rem}
+body.tour-mode .verdict .big{font-size:3rem}
+body.tour-mode .tag3d{font-size:1.05rem}
+body.tour-mode .pipeline .st{font-size:1.05rem}
+#bull{height:340px} #chart{height:320px} #raster{height:240px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink-3);font-size:.88rem;margin-top:6px}
 .legend i{display:inline-block;width:14px;height:3px;margin-inline-end:5px;vertical-align:middle}
 
 .controls{display:flex;flex-direction:column;gap:12px}
@@ -138,16 +155,16 @@ canvas.plot{width:100%;display:block}
 .ctlrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ctlrow input[type=range]{flex:1;min-width:120px}
 
-table{border-collapse:collapse;width:100%;font-size:.86rem}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
 td,th{padding:3px 6px;text-align:start;border-bottom:1px solid var(--rule)}
 th{color:var(--ink-3);font-weight:400}
 td.num{text-align:end}
 .brake{color:var(--survey)}
-.log{height:210px;overflow:auto;font-size:.82rem;color:var(--ink-2)}
+.log{height:240px;overflow:auto;font-size:.9rem;color:var(--ink-2)}
 .log div{padding:2px 0;border-bottom:1px solid rgba(44,64,82,.5)}
 .log .t{color:var(--ink-3);margin-inline-end:8px}
 .alerts{color:var(--signal);font-size:.86rem;min-height:1.2em}
-.facts{color:var(--ink-2);font-size:.82rem;margin-top:8px}
+.facts{color:var(--ink-2);font-size:.9rem;margin-top:8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -180,15 +197,16 @@ td.num{text-align:end}
     <div class="caption" id="caption" aria-live="polite"><b></b><span></span><div class="step num"></div></div>
     <div class="scale-note">המרחק בתצוגה מכווץ; הזוויות מוגדלות לפי המחוון.<br>הקרניים ב-960 nm בלתי נראות בשטח; כאן הן צבועות.<br>גרירה: סיבוב · Ctrl+גלגלת: זום</div>
     <div class="pipeline" id="pipeline"></div>
+    <button class="tourExit" id="tourExit">עצור הדגמה (Esc)</button>
   </section>
 
   <aside aria-label="חיישני PSD">
     <div class="psd" id="psdA"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-A <span class="pill" data-k="pill">—</span></h3><p data-k="role">בלי עדשה · שגיאת המכ"ם</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-A <span class="pill" data-k="pill">—</span></h3><p data-k="role">בלי עדשה · שגיאת המכ"ם</p><div class="read num"></div><p class="num sub"></p><p class="zoom num"></p></div></div>
     <div class="psd" id="psdB"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p data-k="role">מאחורי עדשה · זווית הקרן → שגיאת השופר</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-B <span class="pill" data-k="pill">—</span></h3><p data-k="role">מאחורי עדשה · זווית הקרן → שגיאת השופר</p><div class="read num"></div><p class="num sub"></p><p class="zoom num"></p></div></div>
     <div class="psd" id="psdC"><canvas width="264" height="264"></canvas><div>
-      <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · מיקום שלישי ובדיקה צולבת (ה-roll ממדי הזווית)</p><div class="read num"></div><p class="num sub"></p></div></div>
+      <h3>PSD-C <span class="pill" data-k="pill">—</span></h3><p>בלי עדשה · מיקום שלישי ובדיקה צולבת (ה-roll ממדי הזווית)</p><div class="read num"></div><p class="num sub"></p><p class="zoom num"></p></div></div>
   </aside>
 
   <div class="row">
@@ -201,20 +219,20 @@ td.num{text-align:end}
         <span>שופר</span><span class="v num" id="eh_az">—</span><span class="v num" id="eh_el">—</span>
         <span></span><span class="t num" id="teh_az"></span><span class="t num" id="teh_el"></span>
       </div>
-      <canvas class="plot" id="bull" height="260"></canvas>
+      <canvas class="plot" id="bull" height="340"></canvas>
       <div class="score" id="score"></div>
       <div class="facts" id="facts"></div>
     </section>
     <section class="card" aria-label="ציר זמן">
-      <h2>ציר זמן<small>60 שניות אחרונות</small></h2>
-      <canvas class="plot" id="chart" height="230"></canvas>
+      <h2>ציר זמן<small>60 שניות אחרונות · <span class="num" id="chartspan"></span></small></h2>
+      <canvas class="plot" id="chart" height="320"></canvas>
       <div class="legend">
         <span><i style="background:var(--survey)"></i>מכ"ם Az</span><span><i style="background:#e9a23b"></i>מכ"ם El</span>
         <span><i style="background:var(--ink-2)"></i>שופר Az</span><span><i style="background:#5f7a8f"></i>שופר El</span>
         <span><i style="background:var(--truth)"></i>אמת מכ"ם Az</span>
       </div>
       <h2 style="margin-top:14px">Raster scan<small id="rasterSide">Pan/Tilt של המכ"ם</small></h2>
-      <canvas class="plot" id="raster" height="200"></canvas>
+      <canvas class="plot" id="raster" height="240"></canvas>
     </section>
     <section class="card controls" aria-label="שליטה">
       <h2>שליטה</h2>
@@ -247,6 +265,11 @@ td.num{text-align:end}
         <input id="encAz" type="number" step="0.1" min="-2" max="2" value="0.5" style="width:4.5em" aria-label="אזימוט במעלות"> Az°
         <input id="encEl" type="number" step="0.1" min="-2" max="2" value="0.3" style="width:4.5em" aria-label="גובה במעלות"> El°
         <button class="btn" id="encTest">הזז והחזר</button></div>
+      <div class="ctlrow"><span class="ctl-label">בדיקת צעד מנוע (ה-PSD שופט):</span>
+        <select id="stSide" aria-label="צד"><option value="radar">מכ"ם</option><option value="horn">שופר</option></select>
+        <select id="stAxis" aria-label="ציר"><option value="pan">Pan</option><option value="tilt">Tilt</option></select>
+        <input id="stStep" type="number" step="0.0001" min="0.0001" max="0.05" value="0.001" style="width:5.5em" aria-label="גודל צעד במעלות">°
+        <button class="btn" id="stepTest">5 צעדים הלוך וחזור</button></div>
       <div class="ctlrow"><span class="ctl-label">המכ"ם גבוה מהשופר ב-</span>
         <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button><button data-v="3">3 מ'</button></div></div>
       <div class="ctlrow"><span class="ctl-label">גודל PSD-A/C</span>
@@ -309,6 +332,7 @@ $('blockS').onclick=()=>cmd('block',0.6);
 $('blockL').onclick=()=>cmd('block',3.0);
 $('gap').onclick=()=>cmd('gap', !(M&&M.radar_gap));
 $('encTest').onclick=()=>cmd('encoder_test', `${+$('encAz').value||0},${+$('encEl').value||0}`);
+$('stepTest').onclick=()=>cmd('step_test', `${$('stSide').value},${$('stAxis').value},${+$('stStep').value||0.001},5`);
 $('field').onclick=()=>{hist=[];cmd('field_errors', !(M&&M.field_errors))};
 $('wind').oninput=e=>{$('windv').textContent=e.target.value+'×';cmd('wind',+e.target.value)};
 $('exag').oninput=e=>{exag=+e.target.value;$('exv').textContent=exag};
@@ -598,21 +622,36 @@ requestAnimationFrame(loop);
 function ctx2(c){const g=c.getContext('2d');const w=c.clientWidth, h=c.clientHeight;
   if (c.width!==w*2||c.height!==h*2){c.width=w*2;c.height=h*2} g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,w,h); return [g,w,h]}
 const trails = {A:[],B:[],C:[]};
+const zoomState = {A:{},B:{},C:{}}; let chartSpan = 0;
+const fmtmm = v => v >= 1 ? v.toFixed(1) : v >= 0.1 ? v.toFixed(2) : v.toFixed(3);
 function drawPsd(k, s, geom){
-  const c = $('psd'+k).querySelector('canvas'), g = c.getContext('2d'), W=132;
+  const c = $('psd'+k).querySelector('canvas'), g = c.getContext('2d'), W=c.clientWidth||210;
+  if (c.width!==W*2){c.width=W*2;c.height=W*2}
   g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,W);
-  const size = k==='B' ? geom.b_size_mm : geom.ac_size_mm, half=size/2, sc=(W/2-8)/half, cx=W/2, cy=W/2;
-  g.fillStyle='#101a23'; g.fillRect(cx-half*sc, cy-half*sc, size*sc, size*sc);
-  g.strokeStyle=C.rule; g.lineWidth=1; g.strokeRect(cx-half*sc+.5, cy-half*sc+.5, size*sc-1, size*sc-1);
-  // tolerance ring: the requirement in mm on this PSD
-  const tolmm = (k==='B'? geom.mm_per_deg_b : geom.mm_per_deg_ac)*TOL;
-  if (tolmm < half*1.5){g.setLineDash([3,3]); g.strokeStyle=C.survey; g.globalAlpha=.6; g.beginPath(); g.arc(cx,cy,Math.min(tolmm,half*1.4)*sc,0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=1}
-  g.strokeStyle=C.ink3; g.beginPath(); g.moveTo(cx-8,cy); g.lineTo(cx+8,cy); g.moveTo(cx,cy-8); g.lineTo(cx,cy+8); g.stroke();
+  const size = k==='B' ? geom.b_size_mm : geom.ac_size_mm, half=size/2, cx=W/2, cy=W/2;
+  const tolmm = (k==='B'? geom.mm_per_deg_b : geom.mm_per_deg_ac)*TOL;   // the requirement in mm on this PSD
+  // Zoom: the view is a window around the centre, big enough for the tolerance ring,
+  // the spot and the current reading, never larger than the PSD itself.
+  const rd = s.detect ? Math.max(Math.abs(s.x), Math.abs(s.y)) : 0;
+  const spot = k==='B' ? 0 : geom.spot_r99_mm;
+  const win = Math.min(half, Math.max(3*tolmm, 2*spot, 1.3*rd, 0.05));
+  const zst = zoomState[k]; zst.win = zst.win ? (win > zst.win ? win : zst.win + (win - zst.win)*0.08) : win;
+  const view = zst.win, sc=(W/2-10)/view;
+  g.fillStyle='#101a23'; g.fillRect(0,0,W,W);
+  if (half*sc < W/2){ g.strokeStyle=C.rule; g.lineWidth=1; g.strokeRect(cx-half*sc+.5, cy-half*sc+.5, 2*half*sc-1, 2*half*sc-1) }
+  // grid: 1-2-5 step, about 4 lines per side
+  const raw = view/4, p10 = Math.pow(10, Math.floor(Math.log10(raw))), stp = [1,2,5,10].map(f=>f*p10).find(v=>v>=raw);
+  g.strokeStyle='rgba(120,150,170,.13)'; g.beginPath();
+  for (let v=stp; v<=view*1.05; v+=stp){ for (const q of [v,-v]){ g.moveTo(cx+q*sc,0); g.lineTo(cx+q*sc,W); g.moveTo(0,cy+q*sc); g.lineTo(W,cy+q*sc) } }
+  g.stroke();
+  g.setLineDash([4,3]); g.strokeStyle=C.survey; g.lineWidth=1.5; g.globalAlpha=.85; g.beginPath(); g.arc(cx,cy,Math.min(tolmm*sc, W),0,7); g.stroke(); g.setLineDash([]); g.globalAlpha=1; g.lineWidth=1;
+  g.strokeStyle=C.ink3; g.beginPath(); g.moveTo(cx-10,cy); g.lineTo(cx+10,cy); g.moveTo(cx,cy-10); g.lineTo(cx,cy+10); g.stroke();
   const tr = trails[k]; if (s.detect){tr.push([s.x,s.y]); if(tr.length>24)tr.shift()} else if(tr.length) tr.shift();
-  const X = v => cx - Math.max(-half*1.1,Math.min(half*1.1,v))*sc, Y = v => cy - Math.max(-half*1.1,Math.min(half*1.1,v))*sc;
-  g.strokeStyle=C.irdim; g.beginPath(); tr.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke();
+  const lim = view*1.08, X = v => cx - Math.max(-lim,Math.min(lim,v))*sc, Y = v => cy - Math.max(-lim,Math.min(lim,v))*sc;
+  g.strokeStyle=C.irdim; g.lineWidth=1.5; g.beginPath(); tr.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))); g.stroke(); g.lineWidth=1;
+  $('psd'+k).querySelector('.zoom').textContent = `תצוגה ±${fmtmm(view)} mm · רשת ${fmtmm(stp)} mm · טבעת ${TOLS()} = ${fmtmm(tolmm)} mm`;
   if (s.detect){
-    const r = k==='B' ? 2.5 : Math.max(2.5, geom.spot_r99_mm*sc);
+    const r = Math.min(W/2, k==='B' ? 6 : Math.max(6, spot*sc));
     const gr = g.createRadialGradient(X(s.x),Y(s.y),0,X(s.x),Y(s.y),r);
     gr.addColorStop(0,'rgba(255,120,175,1)'); gr.addColorStop(.5,'rgba(255,61,139,.6)'); gr.addColorStop(1,'rgba(255,61,139,0)');
     g.fillStyle=gr; g.beginPath(); g.arc(X(s.x),Y(s.y),r,0,7); g.fill();
@@ -626,23 +665,32 @@ function drawPsd(k, s, geom){
 }
 
 function drawBull(m){
-  const [g,w,h] = ctx2($('bull')); const R0 = Math.min(w,h)/2-10, cx=w/2, cy=h/2, span=0.1, sc=R0/span;
-  g.strokeStyle=C.rule; g.lineWidth=1;
-  for (const r of [0.025,0.075,0.1]){g.beginPath();g.arc(cx,cy,r*sc,0,7);g.stroke()}
-  g.strokeStyle=C.survey; g.lineWidth=1.5; g.beginPath(); g.arc(cx,cy,TOL*sc,0,7); g.stroke();
-  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText(TOLS(), cx+TOL*sc*0.72+4, cy-TOL*sc*0.72-4);
+  const [g,w,h] = ctx2($('bull')); if (w < 60 || h < 60) return;  // hidden (guided tour full screen)
+  const R0 = Math.min(w,h)/2-12, cx=w/2, cy=h/2, span=3*TOL, sc=R0/span;
+  g.strokeStyle=C.rule; g.lineWidth=1; g.fillStyle=C.ink3; g.font='12px IBM Plex Sans Hebrew';
+  for (const f of [0.5,2,3]){const r=f*TOL; g.beginPath();g.arc(cx,cy,r*sc,0,7);g.stroke(); if(f>1) g.fillText(+r.toFixed(4)+'°', cx+r*sc*0.72+4, cy+r*sc*0.72+12)}
+  g.strokeStyle=C.survey; g.lineWidth=2; g.beginPath(); g.arc(cx,cy,TOL*sc,0,7); g.stroke();
+  g.fillStyle=C.survey; g.font='13px IBM Plex Sans Hebrew'; g.fillText(TOLS(), cx+TOL*sc*0.72+4, cy-TOL*sc*0.72-4); g.lineWidth=1;
+  g.fillStyle=C.ink3; g.font='12px IBM Plex Sans Hebrew'; g.fillText('נקודה על השפה = מחוץ לסקאלה', 6, h-6);
   g.strokeStyle=C.rule; g.beginPath(); g.moveTo(cx-R0,cy); g.lineTo(cx+R0,cy); g.moveTo(cx,cy-R0); g.lineTo(cx,cy+R0); g.stroke();
   const clip = v => Math.max(-span, Math.min(span, v));
+  g.font='13px IBM Plex Sans Hebrew';
   const pt = (az,el,col,fill,label) => { const x=cx+clip(az)*sc, y=cy-clip(el)*sc;
-    g.beginPath(); g.arc(x,y,5,0,7); if(fill){g.fillStyle=col;g.fill()} else {g.strokeStyle=col;g.lineWidth=1.5;g.stroke()}
-    g.fillStyle=col; g.fillText(label, x+7, y-6); };
+    g.beginPath(); g.arc(x,y,7,0,7); if(fill){g.fillStyle=col;g.fill()} else {g.strokeStyle=col;g.lineWidth=1.5;g.stroke()}
+    g.fillStyle=col; g.fillText(label, x+9, y-8); };
   if (m.truth){ pt(m.truth[2],m.truth[3],C.truth,false,'מכ"ם (אמת)'); pt(m.truth[0],m.truth[1],C.truth,false,'שופר (אמת)'); }
   if (m.est){ pt(m.est[2],m.est[3],C.survey,true,'מכ"ם'); pt(m.est[0],m.est[1],C.ink2,true,'שופר'); }
 }
 
 function drawChart(){
   const [g,w,h] = ctx2($('chart')); if (!hist.length) return;
-  const t1 = hist[hist.length-1].t, t0 = Math.max(t1-60, hist[0].t), dur = Math.max(t1-t0, 10), span=0.12, sx=t=>(t-t0)/dur*w, sy=v=>h/2 - Math.max(-span,Math.min(span,v))/span*(h/2-6);
+  const t1 = hist[hist.length-1].t, t0 = Math.max(t1-60, hist[0].t), dur = Math.max(t1-t0, 10);
+  // autoscale to the last 10 s, never below 3x the tolerance
+  let mx = 0; for (const p of hist){ if (p.t < t1-10 || !p.e) continue; for (const v of p.e) mx = Math.max(mx, Math.abs(v)) }
+  const want = Math.min(1, Math.max(3*TOL, 1.2*mx));
+  chartSpan = chartSpan ? (want > chartSpan ? want : chartSpan + (want-chartSpan)*0.05) : want;
+  const span = chartSpan; $('chartspan').textContent = `סקאלה ±${+span.toPrecision(2)}°`;
+  const sx=t=>(t-t0)/dur*w, sy=v=>h/2 - Math.max(-span,Math.min(span,v))/span*(h/2-6);
   g.fillStyle='rgba(242,193,78,.06)'; g.fillRect(0, sy(TOL), w, sy(-TOL)-sy(TOL));
   g.strokeStyle=C.rule; g.beginPath(); g.moveTo(0,sy(0)); g.lineTo(w,sy(0)); g.stroke();
   g.setLineDash([4,4]); g.strokeStyle=C.survey; g.globalAlpha=.5;
@@ -651,8 +699,8 @@ function drawChart(){
     for(const p of hist){const v=f(p); if(v==null){on=false;continue} const x=sx(p.t),y=sy(v); on?g.lineTo(x,y):g.moveTo(x,y); on=true} g.stroke()};
   line(p=>p.tr?p.tr[2]:null, C.truth, 1);
   line(p=>p.e?p.e[0]:null, C.ink2); line(p=>p.e?p.e[1]:null, '#5f7a8f');
-  line(p=>p.e?p.e[2]:null, C.survey, 2); line(p=>p.e?p.e[3]:null, '#e9a23b', 2);
-  g.fillStyle=C.ink3; g.font='11px IBM Plex Sans Hebrew'; g.fillText('+'+TOLS(),4,sy(TOL)-3); g.fillText('-'+TOLS(),4,sy(-TOL)+12);
+  line(p=>p.e?p.e[2]:null, C.survey, 2.4); line(p=>p.e?p.e[3]:null, '#e9a23b', 2.4);
+  g.fillStyle=C.ink3; g.font='13px IBM Plex Sans Hebrew'; g.fillText('+'+TOLS(),4,sy(TOL)-3); g.fillText('-'+TOLS(),4,sy(-TOL)+12);
 }
 
 function drawRaster(m){
@@ -698,7 +746,7 @@ function errText(m){
       + (wbs ? `<br>כולל אי-ודאות כיול (U<sub>bias</sub>, k=2): <span class="num ${w.reported.pass_with_bias?'ok':'no'}">${Math.max(...wbs).toFixed(4)}°</span> · U<sub>bias</sub> מכ"ם <span class="num">${ub[2].toFixed(3)}/${ub[3].toFixed(3)}°</span>, שופר <span class="num">${ub[0].toFixed(3)}/${ub[1].toFixed(3)}°</span>` : '');
   } else box.textContent='';
   $('facts').innerHTML = `הפרש גובה (R3, ממד הזווית): <span class="num">${m.dh_mm==null?'—':m.dh_mm.toFixed(0)} mm</span> · אמת <span class="num">${m.dh_true_mm.toFixed(0)} mm</span><br>`+
-    `כתם (99%): <span class="num">${(2*m.psd_geom.spot_r99_mm).toFixed(2)} mm</span> · תיקונים: <span class="num">${m.corrections}</span> · הצבה #<span class="num">${m.setup_id}</span>` + encText(m);
+    `כתם (99%): <span class="num">${(2*m.psd_geom.spot_r99_mm).toFixed(2)} mm</span> · תיקונים: <span class="num">${m.corrections}</span> · הצבה #<span class="num">${m.setup_id}</span>` + encText(m) + stepText(m);
 }
 // radar encoder return test (R9: repeatable after a move): result line under the errors
 function encText(m){
@@ -710,9 +758,19 @@ function encText(m){
   }
   return `<br><b style="color:var(--survey)">בדיקת אנקודר:</b> הוזז <span class="num">${f4(T.moved[0])}/${f4(T.moved[1])}</span> והוחזר · שגיאת המכ"ם לפני <span class="num">${f4(T.before[0])}/${f4(T.before[1])}</span>, אחרי <span class="num">${f4(T.after[0])}/${f4(T.after[1])}</span> <span style="color:var(--truth)">(אמת אחרי ${f4(T.true_after[0])}/${f4(T.true_after[1])})</span>`;
 }
+// motor step test: commanded steps, measured by the PSD (not the encoder)
+function stepText(m){
+  const T = m.step_test; if (!T) return '';
+  const nm = (T.side==='radar'?'מכ"ם ':'שופר ') + T.axis;
+  const f5 = v => v==null||isNaN(v) ? '—' : (+v).toFixed(5) + '°';
+  if (T.phase !== 'done') return `<br><b style="color:var(--survey)">בדיקת צעד ${nm}:</b> צעד <span class="num">${T.k}/${2*T.n}</span> של <span class="num">${T.step}°</span>; הלולאות עומדות וה-PSD מודד`;
+  return `<br><b style="color:var(--survey)">בדיקת צעד ${nm}:</b> פקודה <span class="num">${T.step}°</span> · ה-PSD מדד קדימה <span class="num">${f5(T.mean_fwd)}</span>, אחורה <span class="num">${f5(T.mean_back)}</span>, σ <span class="num">${f5(T.sd)}</span>`
+    + ` · צעד אחרי היפוך כיוון <span class="num">${f5(T.reversal_step)}</span> · חזרה לנקודת ההתחלה <span class="num">${f5(T.return_error)}</span>`
+    + ` · <b class="${T.resolved?'':'no'}" style="color:${T.resolved?'var(--survey)':'var(--signal)'}">${T.resolved?'כל הצעדים נראו':'לא כל הצעדים נראו'}</b>`;
+}
 function servos(m){
   const he={horn_pan:'שופר Pan',horn_tilt:'שופר Tilt',horn_roll:'שופר Roll',radar_pan:'מכ"ם Pan',radar_tilt:'מכ"ם Tilt',radar_roll:'מכ"ם Roll'};
-  $('servos').querySelector('tbody').innerHTML = m.servos.map(s=>`<tr><td>${he[s.name]}</td><td class="num">${fmt(s.enc,3)}</td><td class="num">${fmt(s.target,3)}</td><td>${s.braked?'<span class="brake">בלם</span>':s.moving?'נע':''}</td></tr>`).join('');
+  $('servos').querySelector('tbody').innerHTML = m.servos.map(s=>`<tr><td>${he[s.name]}</td><td class="num">${fmt(s.enc,4)}</td><td class="num">${fmt(s.target,4)}</td><td>${s.braked?'<span class="brake">בלם</span>':s.moving?'נע':''}</td></tr>`).join('');
   const i=m.incl;
   $('incl').innerHTML=`מד זווית שופר: tilt <span class="num">${fmt(i.horn_tilt,3)}°</span>, roll <span class="num">${fmt(i.horn_roll,3)}°</span><br>מד זווית מכ"ם: tilt <span class="num">${fmt(i.radar_tilt,3)}°</span>, roll <span class="num">${fmt(i.radar_roll,3)}°</span>`;
 }
@@ -793,6 +851,7 @@ const STEP_TEXT = {
   TRACK:'נוצר 0,0. מכאן המערכת שומרת עליו.'};
 async function tour(){
   const id = ++tourRun; $('tour').setAttribute('aria-pressed','true'); $('tour').textContent='עצור הדגמה';
+  tourScreen(true);
   const P1 = i => `חלק 1 מתוך 3 · יצירת 0,0 · שלב ${i}`, P2 = i => `חלק 2 מתוך 3 · שמירה על 0,0 · שלב ${i}`, P3 = i => `חלק 3 מתוך 3 · בדיקת דיוק המכ"ם · שלב ${i}`;
   try{
     if (M && M.radar_gap) await cmd('gap', false);
@@ -845,14 +904,29 @@ async function tour(){
     setView('horn');
     await say(id, 'המכ"ם הוזז', 'הקרן יצאה מ-PSD-A (אין אות). האנקודרים מראים בדיוק כמה המכ"ם זז; לפיהם הוא יחזור, בלי עזרת ה-PSD.', P3(2), 8);
     await until(id, m => m.enc_test && m.enc_test.phase==='done', 20);
-    await say(id, 'המכ"ם חזר לפי האנקודרים', 'ה-PSD מודדים את התוצאה: שגיאת המכ"ם לפני ואחרי מופיעה ב"שגיאות", מתחת לגובה (R3). ההפרש הוא ברזולוציית האנקודר (0.001°).', P3(3), 10);
+    await say(id, 'המכ"ם חזר לפי האנקודרים', 'ה-PSD מודדים את התוצאה: שגיאת המכ"ם לפני ואחרי. ההפרש הוא ברזולוציית האנקודר (0.0001°) ובחזרתיות המנוע.', P3(3), 10);
     caption('סוף ההדגמה', 'ראו "לפני ואחרי" למטה: השגיאה ההתחלתית מול השארית, לצד האמת ואי-ודאות הכיול.', '');
     await hold(id, 8);
   } catch(e){ if (e!=='aborted' && e!=='fault') console.error(e) }
   await cmd('pause_on_state', false); await cmd('pause', false);
   if (tourRun===id){ tourRun++; caption(null) }
+  if (tourRun===id+1) tourScreen(false);
   $('tour').setAttribute('aria-pressed','false'); $('tour').textContent='הדגמה מודרכת';
 }
+// Full screen with only the simulation stage while the tour runs.
+function tourScreen(on){
+  document.body.classList.toggle('tour-mode', on);
+  const fs = document.fullscreenElement;
+  try{
+    if (on && !fs && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    if (!on && fs && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  }catch(e){}
+}
+function stopTour(){ if ($('tour').getAttribute('aria-pressed')==='true'){ tourRun++; caption(null) } tourScreen(false) }
+$('tourExit').onclick = stopTour;
+// Esc leaves full screen: stop the tour too
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('tour-mode')) stopTour() });
+document.addEventListener('keydown', e => { if (e.key==='Escape' && document.body.classList.contains('tour-mode')) stopTour() });
 $('tour').onclick = () => { if ($('tour').getAttribute('aria-pressed')==='true'){ tourRun++; caption(null) } else tour() };
 function pipeline(m){
   const idx = PIPE.indexOf(m.state);
