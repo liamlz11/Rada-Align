@@ -248,7 +248,7 @@ td.num{text-align:end}
         <input id="encEl" type="number" step="0.1" min="-2" max="2" value="0.3" style="width:4.5em" aria-label="גובה במעלות"> El°
         <button class="btn" id="encTest">הזז והחזר</button></div>
       <div class="ctlrow"><span class="ctl-label">המכ"ם גבוה מהשופר ב-</span>
-        <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button></div></div>
+        <div class="seg" id="height" role="group" aria-label="הפרש גובה"><button data-v="0">0</button><button data-v="0.3">0.3 מ'</button><button data-v="0.6">0.6 מ'</button><button data-v="1">1 מ'</button><button data-v="3">3 מ'</button></div></div>
       <div class="ctlrow"><span class="ctl-label">גודל PSD-A/C</span>
         <div class="seg" id="psdsize"><button data-v="9">9 מ"מ (S5991-01)</button><button data-v="20">20 מ"מ</button></div></div>
       <div class="alerts" id="alerts"></div>
@@ -557,8 +557,21 @@ const VIEWS = {
   hornClose:{p:[0.85,0.95,0.7], t:[0.05,0.75,0]},
 };
 let tween = null;
+// presets are written for a radar up to ~1 m above the horn; a taller set-up
+// (height selector, up to 3 m) lifts and pulls back the wide views and moves the
+// radar close-ups up with the radar, so both stay in frame
+let viewName = 'overview', viewH = 0;
+function viewFor(name, h){
+  const v = VIEWS[name], p = [...v.p], t = [...v.t], x = Math.max(0, h - 0.6);
+  if (['overview','side','top'].includes(name)){ t[1] += x/2; p[1] += x*0.6; p[2] += x*0.9 }
+  if (name==='radar'){ p[1] += x; t[1] += x/2 }
+  if (name==='radarUnit'){ p[1] += x; t[1] += x }
+  return {p, t};
+}
 function setView(name){
-  const v = VIEWS[name]; if (!v) return;
+  if (!VIEWS[name]) return;
+  viewName = name; viewH = M ? M.pose.height_m : 0;
+  const v = viewFor(name, viewH);
   tween = {t0:performance.now(), p0:cam.position.clone(), q0:orbit.target.clone(),
     p1:new THREE.Vector3(...v.p), q1:new THREE.Vector3(...v.t)};
   $('views').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===name)));
@@ -578,7 +591,7 @@ function resize(){
   renderer.setSize(r.width, r.height, false); cam.aspect = r.width/r.height; cam.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
-function loop(){ stepTween(); stepRain(); orbit.target.clamp(TARGET_MIN, TARGET_MAX); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
+function loop(){ stepTween(); stepRain(); TARGET_MAX.y = 2.5 + Math.max(0, (M ? M.pose.height_m : 0) - 0.6); orbit.target.clamp(TARGET_MIN, TARGET_MAX); orbit.update(); if (M) applyPose(M); renderer.render(scene, cam); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
 // ------------------------------------------------------------------ 2D canvases
@@ -849,6 +862,7 @@ function pipeline(m){
 function controls(m){
   const set=(id,val)=>$(id).querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.v===val)));
   set('dist', m.distance_m); set('speed', m.speed); set('psdsize', m.psd_geom.ac_size_mm); set('height', m.pose.height_m);
+  if (m.pose.height_m !== viewH && !tween) setView(viewName);  // re-frame after a height change
   $('weather').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.v===m.weather)));
   const loss = (1-m.transmission)*100;
   $('wxinfo').innerHTML = m.weather==='clear' ? '' : `${WX_HE[m.weather]}: ${WX_WHY[m.weather]} · אובדן עוצמה במסלול <span class="num">${loss.toFixed(loss<1?2:0)}%</span> <span style="color:var(--ink-3)">(מודל עם פרמטרים מונחים)</span>`;

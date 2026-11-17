@@ -85,7 +85,7 @@ class PsdSession:
                 self.distance_m = float(np.clip(float(value), 1.0, 20.0))
                 self._build()
             elif name == "height":
-                self.height_m = float(np.clip(float(value), -2.0, 2.0))
+                self.height_m = float(np.clip(float(value), -5.0, 5.0))
                 self._build()
             elif name == "weather":
                 w.set_weather(str(value))
