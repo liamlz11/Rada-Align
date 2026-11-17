@@ -51,6 +51,13 @@ python -m pip install -e ".[dev]"
 pytest -q
 ```
 
+The venv itself is not in the repo (455 MB and tied to one machine). To get the exact package versions it was tested with (Python 3.11.9), install from `requirements-lock.txt` instead:
+
+```powershell
+python -m pip install -r requirements-lock.txt
+python -m pip install -e . --no-deps
+```
+
 If activation is blocked: `Set-ExecutionPolicy -Scope Process RemoteSigned`, or skip activation and call `.venv\Scripts\python.exe -m pytest -q`.
 
 WSL (needs a Linux distro, e.g. `wsl --install -d Ubuntu`; keep the venv off /mnt/c, it is slow there):
